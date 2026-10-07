@@ -117,6 +117,8 @@ export default function App() {
         {currentScreen === 'SUCCESS' && verificationResult && (
           <SuccessScreen
             result={verificationResult}
+            session={activeSession}
+            user={currentUser}
             onFinish={() => setCurrentScreen('HOME')}
           />
         )}

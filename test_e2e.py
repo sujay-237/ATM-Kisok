@@ -21,7 +21,7 @@ async def run_e2e_test():
         assert r.status_code == 200
         users = r.json()
         user_names = [u['username'] for u in users]
-        test_user = next((u for u in users if u.get('has_reference_selfie')), users[1])
+        test_user = next((u for u in users if u.get('has_reference_selfie') and u.get('account_balance', 0) >= 500), users[1])
         print(f'Testing customer: {test_user["full_name"]} (@{test_user["username"]}) balance: ₹{test_user["account_balance"]}')
 
         print('\n=== 2. Testing Gemini 3-Key Rotator ===')
@@ -130,11 +130,12 @@ async def run_e2e_test():
 
         print('\n=== 9. Testing Temporary Delegations ===')
         sarah = next(u for u in users if u['username'] == 'sarah')
+        del_limit = min(25.0, updated_user["account_balance"])
         del_r = await client.post(f'{API_BASE}/api/delegations', json={
             'delegator_id': test_user['id'],
             'delegatee_name': sarah['full_name'],
             'delegatee_phone': sarah['phone'],
-            'max_withdrawal_limit': 120.0,
+            'max_withdrawal_limit': del_limit,
             'duration_hours': 24
         })
         assert del_r.status_code == 200

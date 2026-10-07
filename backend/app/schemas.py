@@ -64,6 +64,7 @@ class SessionResponse(BaseModel):
     qr_payload: str
     user_id: Optional[str] = None
     user: Optional[Dict[str, Any]] = None
+    transaction: Optional[Dict[str, Any]] = None
     created_at: datetime
 
 

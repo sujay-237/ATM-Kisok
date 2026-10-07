@@ -133,6 +133,17 @@ async def get_session(session_id: str, db: AsyncIOMotorDatabase = Depends(get_db
             }
 
     qr_payload = f"atm://session?id={doc['id']}&kiosk={doc['kiosk_id']}"
+    
+    tx_info = None
+    tx = await db["transactions"].find_one({"session_id": session_id})
+    if tx:
+        tx_info = {
+            "id": tx["id"],
+            "amount": tx["amount"],
+            "remaining_balance": user_info.get("account_balance", 0.0) if user_info else 0.0,
+            "created_at": tx.get("created_at"),
+        }
+
     return SessionResponse(
         session_id=doc["id"],
         kiosk_id=doc["kiosk_id"],
@@ -141,6 +152,7 @@ async def get_session(session_id: str, db: AsyncIOMotorDatabase = Depends(get_db
         qr_payload=qr_payload,
         user_id=doc.get("user_id"),
         user=user_info,
+        transaction=tx_info,
         created_at=doc["created_at"],
     )
 

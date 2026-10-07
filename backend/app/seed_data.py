@@ -65,3 +65,27 @@ async def seed_database(db: AsyncIOMotorDatabase) -> None:
             "updated_at": now,
         }
         await db["users"].insert_one(sarah_user)
+
+    # Ensure customer sujay exists with ₹25,000.23 balance
+    sujay_exists = await db["users"].find_one({"username": "sujay"})
+    if not sujay_exists:
+        sujay_user = {
+            "id": str(uuid.uuid4()),
+            "username": "sujay",
+            "email": "sujay.tp41@gmail.com",
+            "phone": "+91 99999 99999",
+            "full_name": "Sujay Lokhande",
+            "hashed_pin": hash_pin("1234"),
+            "account_balance": 25000.23,
+            "reference_selfie": None,
+            "role": "user",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db["users"].insert_one(sujay_user)
+    else:
+        await db["users"].update_one(
+            {"username": "sujay"},
+            {"$set": {"account_balance": 25000.23, "updated_at": now}}
+        )
