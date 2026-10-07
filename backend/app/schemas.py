@@ -96,6 +96,8 @@ class VerifySelfieResponse(BaseModel):
     reason: str
     engine: str
     failover_occurred: bool
+    key_used: Optional[str] = None
+    keys_attempted: Optional[List[str]] = None
     status: str
     user: Optional[Dict[str, Any]] = None
 

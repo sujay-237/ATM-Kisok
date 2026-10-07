@@ -121,6 +121,8 @@ async def verify_selfie(
             reason=ai_result.get("reason", "Facial landmarks verified by Google Gemini."),
             engine=ai_result.get("engine", "Google Gemini Vision"),
             failover_occurred=ai_result.get("failover_occurred", False),
+            key_used=ai_result.get("key_used"),
+            keys_attempted=ai_result.get("keys_attempted"),
             status="AUTHORIZED",
             user=user_info,
         )
@@ -154,6 +156,8 @@ async def verify_selfie(
             reason=reason_msg,
             engine=ai_result.get("engine", "Google Gemini Vision"),
             failover_occurred=ai_result.get("failover_occurred", False),
+            key_used=ai_result.get("key_used"),
+            keys_attempted=ai_result.get("keys_attempted"),
             status="FAILED",
             user=None,
         )
