@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+/* Light ATM Kiosk Enclosure */
+.kiosk-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+}
+
+/* Tactile physical ATM buttons (Light Theme) */
+.atm-keypad-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 3px 0 #94a3b8, 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  color: #1e293b;
+  transition: all 0.08s ease;
+}
+.atm-keypad-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+.atm-keypad-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #94a3b8, inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.atm-action-btn {
+  transition: all 0.15s ease;
+}
+.atm-action-btn:active {
+  transform: scale(0.98);
+}

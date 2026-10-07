@@ -1,0 +1,11 @@
+{
+  "name": "atm-anti-fraud-kiosk-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && .\\venv\\Scripts\\uvicorn app.main:app --port 8000 --reload",
+    "dev:kiosk": "cd atm-kiosk && npm run dev",
+    "dev:dashboard": "cd dashboard && npm run dev",
+    "dev:mobile": "cd mobile-app && npm run web"
+  }
+}

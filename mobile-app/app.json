@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Sentinel Mobile Banking",
+    "slug": "sentinel-atm-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sentinel.atm",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Sentinel requires camera access to scan ATM dynamic QR codes and perform facial liveness verification.",
+        "NSFaceIDUsageDescription": "Sentinel uses FaceID for secure local biometric authorization."
+      }
+    },
+    "android": {
+      "package": "com.sentinel.atm",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Sentinel to access your camera for ATM QR scanning and live selfie verification."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Sentinel to use FaceID for biometric authentication."
+        }
+      ]
+    ]
+  }
+}

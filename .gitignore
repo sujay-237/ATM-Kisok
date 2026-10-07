@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+venv/
+.venv/
+env/
+ENV/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node.js & Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Production Build Artifacts
+dist/
+build/
+atm-kiosk/dist/
+dashboard/dist/
+mobile-app/dist/
+.cache/
+.parcel-cache/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!*.env.example
+!.env.example
+
+# React Native & Expo
+.expo/
+.expo-shared/
+web-build/
+
+# Android
+mobile-app/android/.gradle/
+mobile-app/android/build/
+mobile-app/android/app/build/
+mobile-app/android/captures/
+mobile-app/android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/local.properties
+*.apk
+*.aab
+*.dex
+*.class
+*.keystore
+*.jks
+
+# IDE & Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
