@@ -19,7 +19,7 @@ async def run_e2e_test():
         user_names = [u['username'] for u in users]
         print(f'Users in database: {len(users)} ({user_names})')
         alex = next(u for u in users if u['username'] == 'alex')
-        print(f'Alex Mercer balance: ${alex["account_balance"]}')
+        print(f'Alex Mercer balance: ₹{alex["account_balance"]}')
 
         print('\n=== 2. Testing Gemini 3-Key Rotator ===')
         r = await client.get(f'{API_BASE}/api/gemini/status')
@@ -114,13 +114,13 @@ async def run_e2e_test():
             # Read WS update
             ws_msg = await asyncio.wait_for(ws.recv(), timeout=3.0)
             ws_event = json.loads(ws_msg)
-            print('WebSocket received event:', ws_event.get('event'), 'Dispensing $', ws_event.get('amount'))
+            print('WebSocket received event:', ws_event.get('event'), 'Dispensing ₹', ws_event.get('amount'))
             assert ws_event.get('event') == 'DISPENSING_CASH'
 
             # Verify balance updated
             r = await client.get(f'{API_BASE}/api/users/{alex["id"]}')
             updated_alex = r.json()
-            print(f'New Alex Mercer Balance: ${updated_alex["account_balance"]} (Expected: ${initial_balance - withdraw_amt})')
+            print(f'New Alex Mercer Balance: ₹{updated_alex["account_balance"]} (Expected: ₹{initial_balance - withdraw_amt})')
             assert updated_alex['account_balance'] == initial_balance - withdraw_amt
 
         print('\n=== 9. Testing Temporary Delegations ===')

@@ -84,10 +84,10 @@ sequenceDiagram
 
     Note over User,Kiosk: Step 5: Cash Dispensing
     Kiosk->>User: Keypad unlocks with audio feedback
-    User->>Kiosk: Selects "$150"
-    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 150}
-    Backend->>DB: Atomic decrement balance ($4,850 -> $4,700)
-    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 150}
+    User->>Kiosk: Selects "₹1,500"
+    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 1500}
+    Backend->>DB: Atomic decrement balance (₹4,850 -> ₹3,350)
+    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 1500}
     Kiosk->>User: Motorized tray opens, audio counting sounds, bills ejected
     Kiosk->>User: Displays summary receipt and returns to Home
 ```
@@ -111,9 +111,9 @@ sequenceDiagram
 
     Note over Alex,Dashboard: 1. Granting Delegation
     Alex->>Dashboard: Logs into Portal, opens "Family Delegations"
-    Alex->>Dashboard: Specifies Phone: Sarah, Max Limit: $120.00, Duration: 2h
+    Alex->>Dashboard: Specifies Phone: Sarah, Max Limit: ₹5,000.00, Duration: 2h
     Dashboard->>Backend: POST /api/delegations/create
-    Backend->>DB: Stores Delegation document {max: 120, used: 0, expires_in: 2h}
+    Backend->>DB: Stores Delegation document {max: 5000, used: 0, expires_in: 2h}
 
     Note over Sarah,Kiosk: 2. Kiosk Arrival & Withdrawal
     Sarah->>Kiosk: Walks up to ATM Terminal
@@ -125,12 +125,12 @@ sequenceDiagram
 
     Note over Sarah,Kiosk: 3. Execution & Ceiling Enforcement
     Kiosk->>Sarah: Prompts cash withdrawal amount
-    Sarah->>Kiosk: Requests $100.00
-    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 100}
-    Backend->>DB: Checks delegation (used $0 + $100 <= $120 max) -> Validated!
-    Backend->>DB: Atomically increments used_amount ($100) and decrements Alex balance
-    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 100}
-    Kiosk->>Sarah: Ejects $100 cash notes
+    Sarah->>Kiosk: Requests ₹2,000.00
+    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 2000}
+    Backend->>DB: Checks delegation (used ₹0 + ₹2,000 <= ₹5,000 max) -> Validated!
+    Backend->>DB: Atomically increments used_amount (₹2,000) and decrements Alex balance
+    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 2000}
+    Kiosk->>Sarah: Ejects ₹2,000 cash notes
     Backend-->>Dashboard: Real-time notification sent to Alex
 ```
 
@@ -179,7 +179,7 @@ The backend inspects every transaction against fraud heuristics and broadcasts a
  ┌───────────────────────────────┐
  │ Heuristic Rules Engine        │
  ├───────────────────────────────┤
- │ 1. Amount > $1,000.00?        │ ──▶ Flag: HIGH_AMOUNT_WITHDRAWAL
+ │ 1. Amount > ₹10,000.00?       │ ──▶ Flag: HIGH_AMOUNT_WITHDRAWAL
  │ 2. Velocity > 3 tx in 15 min? │ ──▶ Flag: RAPID_VELOCITY_SPIKE
  │ 3. Device mismatch?           │ ──▶ Flag: UNKNOWN_DEVICE_FINGERPRINT
  └───────────────┬───────────────┘
@@ -193,7 +193,7 @@ The backend inspects every transaction against fraud heuristics and broadcasts a
  ┌────────────────────────────────────────────────────────┐
  │ Admin Dashboard SOC Alert:                             │
  │ 🚨 [CRITICAL ANOMALY DETECTED]                         │
- │ User: Alex Mercer | Amount: $1,500.00                  │
+ │ User: Alex Mercer | Amount: ₹15,000.00                 │
  │ Reason: Withdrawal exceeds single-transaction ceiling  │
  └────────────────────────────────────────────────────────┘
 ```

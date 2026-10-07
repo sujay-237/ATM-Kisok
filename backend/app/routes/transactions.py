@@ -77,9 +77,9 @@ async def process_withdrawal(
     anomaly_flag = False
     anomaly_reason = None
 
-    if payload.amount >= 1000.0:
+    if payload.amount >= 10000.0:
         anomaly_flag = True
-        anomaly_reason = f"High-value cash withdrawal exceeding threshold ($ {payload.amount:.2f})"
+        anomaly_reason = f"High-value cash withdrawal exceeding threshold (₹ {payload.amount:,.2f})"
 
     # Check velocity (multiple transactions within 5 minutes)
     five_min_ago = utc_now() - timedelta(minutes=5)
@@ -142,7 +142,7 @@ async def process_withdrawal(
             "amount": payload.amount,
             "remaining_balance": balance_to_report,
             "anomaly_flag": anomaly_flag,
-            "message": f"Successfully authorized. Dispensing ${payload.amount:.2f}...",
+            "message": f"Successfully authorized. Dispensing ₹{payload.amount:,.2f}...",
         },
     )
 

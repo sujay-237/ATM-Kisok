@@ -283,7 +283,7 @@ await db["delegations"].update_one(
 ### 2.7 AI Anomaly Detection Engine
 
 Every transaction is evaluated by heuristic anomaly detection rules:
-1. **High Value Threshold**: Withdrawals exceeding $1,000.00 are automatically flagged.
+1. **High Value Threshold**: Withdrawals exceeding ₹10,000.00 are automatically flagged.
 2. **Velocity Check**: More than 3 withdrawals on the same account within a 15-minute window trigger high-velocity fraud alerts.
 3. **Delegation Ceiling Alert**: Any delegated withdrawal exceeding 90% of the maximum limit triggers a warning badge in the Admin SOC.
 
@@ -300,7 +300,7 @@ App.tsx (Main State Machine & WebSocket Listener)
 ├── Header.tsx (Terminal ID, Real-time Clock, WebSocket Connection Pill)
 ├── SessionQRCode.tsx (Rotating QR canvas, session countdown timer)
 ├── AuthProcessingScreen.tsx (Progress pulse: Scanning -> Biometrics -> Verifying)
-├── AmountSelectionScreen.tsx (Preset cash buttons: $20, $50, $100, $150, $200)
+├── AmountSelectionScreen.tsx (Preset cash buttons: ₹500, ₹1,000, ₹2,000, ₹3,000, ₹5,000, ₹10,000)
 │   └── Keypad.tsx (Custom numeric entry keypad with tactile audio)
 ├── CashDispenser.tsx (Motor shutter animation, bill counter, glowing cash tray)
 └── TransactionSuccessScreen.tsx (ATM receipt card, balance update, session exit)
@@ -349,7 +349,7 @@ The `dashboard` application provides role-based interfaces for both security adm
 
 The Security Operations Center (SOC) connects to the `/ws/admin` WebSocket channel:
 - **Live Transaction Ledger**: Streams every cash withdrawal event across all kiosks with millisecond timestamps, kiosk IDs, user names, and amounts.
-- **Fraud Anomaly Highlights**: Visual amber/red threat banners displaying anomaly reasons (e.g. `HIGH_AMOUNT_WITHDRAWAL: $1,250.00`).
+- **Fraud Anomaly Highlights**: Visual amber/red threat banners displaying anomaly reasons (e.g. `HIGH_AMOUNT_WITHDRAWAL: ₹15,000.00`).
 
 ### 4.2 Visual Gemini Key Rotator Control Panel
 
@@ -362,7 +362,7 @@ The SOC provides direct visibility into Google Gemini infrastructure:
 
 In the User Portal, account holders can authorize family members:
 - Enter beneficiary mobile number.
-- Set strict maximum withdrawal amount (e.g., $150.00).
+- Set strict maximum withdrawal amount (e.g., ₹2,000.00).
 - Set expiration duration (e.g., 2 hours, 24 hours).
 - Review active delegations and revoke privileges instantly.
 
@@ -423,7 +423,7 @@ The automated test script (`test_e2e.py`) validates the complete system using `h
     └── Fetches baseline photo, transmits live selfie, verifies >=0.85 match, awaits WS event: AUTHORIZED.
 
  Stage 8: Atomic Cash Withdrawal & Hardware Dispense
-    └── Executes $150 withdrawal, validates balance decrement, awaits WS event: DISPENSING_CASH.
+    └── Executes ₹1,500 withdrawal, validates balance decrement, awaits WS event: DISPENSING_CASH.
 
  Stage 9: Temporary Delegation Limit Verification
     └── Creates emergency delegation and validates quota constraints.

@@ -51,7 +51,7 @@ export const CashDispenser: React.FC<CashDispenserProps> = ({
       </div>
 
       <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-        Dispensing ${amount.toFixed(2)}
+        Dispensing ₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
       </h2>
       <p className="text-slate-500 text-xs mt-1">Please retrieve your notes from the cash tray below.</p>
 
@@ -74,12 +74,12 @@ export const CashDispenser: React.FC<CashDispenserProps> = ({
           {/* Bills */}
           {shutterOpen && (
             <div className="relative flex items-center justify-center animate-bounce">
-              <div className="w-56 h-12 bg-emerald-600 rounded shadow-lg border border-emerald-400 flex items-center justify-between px-4 text-white font-bold tracking-wider">
-                <span className="text-sm font-mono">$100</span>
-                <span className="text-[10px] font-mono uppercase bg-emerald-800 px-2 py-0.5 rounded">
-                  FEDERAL RESERVE NOTE
+              <div className="w-56 h-12 bg-emerald-700 rounded shadow-lg border border-emerald-400 flex items-center justify-between px-4 text-white font-bold tracking-wider">
+                <span className="text-sm font-mono">₹500</span>
+                <span className="text-[10px] font-mono uppercase bg-emerald-900 px-2 py-0.5 rounded">
+                  RESERVE BANK OF INDIA
                 </span>
-                <span className="text-sm font-mono">$100</span>
+                <span className="text-sm font-mono">₹500</span>
               </div>
             </div>
           )}

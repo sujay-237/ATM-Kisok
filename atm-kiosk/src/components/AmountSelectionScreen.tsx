@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Wallet, Eye, EyeOff, UserCheck, AlertTriangle } from 'lucide-react';
+import { IndianRupee, Wallet, Eye, EyeOff, UserCheck, AlertTriangle } from 'lucide-react';
 import { KioskUser } from '../types';
 import { Keypad } from './Keypad';
 import { sounds } from '../utils/sound';
@@ -12,7 +12,7 @@ interface AmountSelectionScreenProps {
   error?: string | null;
 }
 
-const PRESET_AMOUNTS = [20, 40, 60, 100, 200, 500];
+const PRESET_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000];
 
 export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
   user,
@@ -21,8 +21,8 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
   loading,
   error,
 }) => {
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(100);
-  const [customAmountStr, setCustomAmountStr] = useState<string>('100');
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(1000);
+  const [customAmountStr, setCustomAmountStr] = useState<string>('1000');
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [showBalance, setShowBalance] = useState<boolean>(true);
 
@@ -87,7 +87,7 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
           <div>
             <p className="text-[10px] uppercase font-bold text-slate-500">Checking Balance</p>
             <p className="text-base font-bold text-slate-900 font-mono">
-              {showBalance ? `$${user.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '••••••••'}
+              {showBalance ? `₹${user.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••••'}
             </p>
           </div>
           <button
@@ -130,8 +130,8 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
                       : 'bg-white hover:bg-slate-50 text-slate-900 font-bold border-slate-200 shadow-sm'
                   }`}
                 >
-                  <span className="text-[11px] opacity-70">USD</span>
-                  <span className="text-xl mt-0.5">${amt}</span>
+                  <span className="text-[11px] opacity-70">INR</span>
+                  <span className="text-xl mt-0.5">₹{amt.toLocaleString('en-IN')}</span>
                 </button>
               );
             })}
@@ -142,7 +142,7 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
             <div>
               <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Withdrawal Amount</p>
               <div className="flex items-baseline space-x-1 mt-1">
-                <span className="text-2xl text-slate-400 font-mono font-bold">$</span>
+                <span className="text-2xl text-slate-400 font-mono font-bold">₹</span>
                 <span className="text-4xl font-mono font-bold text-slate-900 tracking-tight">
                   {customAmountStr || '0'}
                 </span>
@@ -165,7 +165,7 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
                 disabled={loading || currentAmount <= 0}
                 className="px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition flex items-center gap-1.5"
               >
-                <DollarSign className="w-4 h-4 stroke-[2.5]" />
+                <IndianRupee className="w-4 h-4 stroke-[2.5]" />
                 {loading ? 'Processing...' : 'Dispense Cash'}
               </button>
             </div>

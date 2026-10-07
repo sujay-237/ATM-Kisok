@@ -33,7 +33,7 @@ export const DelegationModal: React.FC<DelegationModalProps> = ({
       return;
     }
     if (limitNum > userBalance) {
-      setError(`Limit exceeds current balance ($${userBalance.toFixed(2)}).`);
+      setError(`Limit exceeds current balance (₹${userBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}).`);
       return;
     }
 
@@ -127,7 +127,7 @@ export const DelegationModal: React.FC<DelegationModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-                Maximum Limit ($)
+                Maximum Limit (₹)
               </label>
               <input
                 type="number"

@@ -67,7 +67,7 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
         <div className="py-5 text-center border-b border-slate-100">
           <p className="text-[11px] uppercase font-bold text-slate-400">Cash Dispensed</p>
           <p className="text-3xl font-mono font-bold text-slate-900 mt-0.5">
-            ${data.amount.toFixed(2)} <span className="text-xs text-slate-400">USD</span>
+            ₹{data.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400">INR</span>
           </p>
         </div>
 
@@ -82,7 +82,7 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
           </div>
           <div className="flex justify-between">
             <span>Remaining Balance:</span>
-            <span className="text-slate-900 font-semibold">${data.remaining_balance.toFixed(2)}</span>
+            <span className="text-slate-900 font-semibold">₹{data.remaining_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="flex justify-between">
             <span>Date & Time:</span>

@@ -72,7 +72,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <p className="text-xs text-slate-600">
               <strong>{delegations[0].delegator_name}</strong> approved you to withdraw up to{' '}
-              <strong className="text-emerald-700">${delegations[0].remaining_limit.toFixed(2)}</strong> at any ATM!
+              <strong className="text-emerald-700">₹{delegations[0].remaining_limit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong> at any ATM!
             </p>
           </div>
         )}
@@ -92,11 +92,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           <div className="flex items-baseline space-x-1.5">
-            <span className="text-xl font-light text-blue-200">$</span>
+            <span className="text-xl font-light text-blue-200">₹</span>
             <span className="text-3xl font-extrabold font-mono tracking-tight">
-              {showBalance ? user.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '••••••••'}
+              {showBalance ? user.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '••••••••'}
             </span>
-            <span className="text-xs text-blue-200 font-mono">USD</span>
+            <span className="text-xs text-blue-200 font-mono">INR</span>
           </div>
 
           <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-[11px] text-blue-100 font-mono">
@@ -148,7 +148,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Footer Info */}
       <div className="pt-4 text-center text-[11px] text-slate-400 font-sans">
-        Sentinel Cardless ATM Network • FDIC Insured
+        Sentinel Cardless ATM Network • RBI Regulated
       </div>
     </div>
   );

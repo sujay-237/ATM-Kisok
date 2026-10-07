@@ -127,11 +127,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
 
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-light text-blue-200">$</span>
+              <span className="text-3xl font-light text-blue-200">₹</span>
               <span className="text-5xl font-extrabold font-mono tracking-tight">
-                {showBalance ? currentUser.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '••••••••'}
+                {showBalance ? currentUser.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '••••••••'}
               </span>
-              <span className="text-xs text-blue-200 font-mono">USD</span>
+              <span className="text-xs text-blue-200 font-mono">INR</span>
             </div>
           </div>
 
@@ -256,11 +256,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <div className="mt-3 pt-3 border-t border-slate-200 space-y-1 text-xs">
                     <div className="flex justify-between text-slate-600">
                       <span>Max Cap:</span>
-                      <span className="font-semibold text-slate-900 font-mono">${d.max_withdrawal_limit.toFixed(2)}</span>
+                      <span className="font-semibold text-slate-900 font-mono">₹{d.max_withdrawal_limit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-slate-600">
                       <span>Remaining:</span>
-                      <span className="font-bold text-emerald-600 font-mono">${d.remaining_limit.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-600 font-mono">₹{d.remaining_limit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -323,7 +323,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     <td className="px-4 py-3 font-semibold text-slate-900 font-mono">{tx.kiosk_id}</td>
                     <td className="px-4 py-3 text-slate-600">{tx.transaction_type}</td>
                     <td className="px-4 py-3 font-bold text-emerald-600 font-mono text-sm">
-                      ${tx.amount.toFixed(2)}
+                      ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">

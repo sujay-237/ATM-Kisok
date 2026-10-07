@@ -132,10 +132,10 @@ sequenceDiagram
     Backend-->>Kiosk: WS Broadcast (event: AUTHORIZED)
 
     Kiosk->>Customer: "Authorized! Enter Cash Amount"
-    Customer->>Kiosk: Select $150 via Tactile Audio Keypad
+    Customer->>Kiosk: Select ₹1,500 via Tactile Audio Keypad
     Kiosk->>Backend: POST /api/transactions/withdraw
     Backend->>DB: Atomic Balance Decrement & Ledger Entry
-    Backend-->>Kiosk: WS Broadcast (event: DISPENSING_CASH, amount: 150)
+    Backend-->>Kiosk: WS Broadcast (event: DISPENSING_CASH, amount: 1500)
     Kiosk->>Customer: Audio Dispenser Sound + Cash Tray Motor Animation
     Kiosk->>Customer: Display Success Screen & Auto-Logout
 ```
@@ -165,7 +165,7 @@ sequenceDiagram
 
 ### 5. 🤝 Delegated Family Cash Withdrawals
 - Primary account holders can generate temporary, time-bounded cardless cash withdrawal privileges for family members or trusted associates.
-- Configurable spend limits (e.g., $100 limit, 2-hour validity).
+- Configurable spend limits (e.g., ₹5,000 limit, 2-hour validity).
 - The system automatically validates delegation limits and atomically updates the remaining balance upon withdrawal.
 
 ### 6. 🎧 Realistic ATM Hardware Sensory Simulation
@@ -383,9 +383,9 @@ The database comes pre-seeded with sample users for instant demonstration:
 
 | Role | Username | PIN | Balance | Features / Notes |
 |:-----|:---------|:----|:--------|:-----------------|
-| **Security Admin** | `admin` | `9999` | $99,999.00 | Security Operations Center (SOC), Gemini Key Monitor, Anomaly Rules |
-| **Primary Customer** | `alex` | `1234` | $4,850.00 | Registered baseline facial selfie, cardless enabled |
-| **Family Beneficiary** | `sarah` | `4321` | $1,200.00 | Pre-configured delegation beneficiary for emergency cash withdrawals |
+| **Security Admin** | `admin` | `9999` | ₹99,999.00 | Security Operations Center (SOC), Gemini Key Monitor, Anomaly Rules |
+| **Primary Customer** | `alex` | `1234` | ₹4,850.00 | Registered baseline facial selfie, cardless enabled |
+| **Family Beneficiary** | `sarah` | `4321` | ₹1,200.00 | Pre-configured delegation beneficiary for emergency cash withdrawals |
 
 ---
 
@@ -470,7 +470,7 @@ python test_e2e.py
 === 1. Checking Health & Seed Data ===
 Health: {'status': 'healthy', 'database': 'connected', 'version': '1.0.0'}
 Users in database: 3 (['admin', 'alex', 'sarah'])
-Alex Mercer balance: $4850.0
+Alex Mercer balance: ₹4850.0
 
 === 2. Testing Gemini 3-Key Rotator ===
 Rotator key slots: ['KEY_1', 'KEY_2', 'KEY_3']
@@ -494,11 +494,11 @@ Selfie Verification Result: {'match': True, 'confidence': 0.96, 'engine': 'Gemin
 WebSocket received event: AUTHORIZED
 
 === 8. Executing ACID Cash Withdrawal ===
-Withdrawal Transaction: {'id': 'tx_981a3', 'amount': 150.0, 'status': 'COMPLETED'}
-WebSocket received event: DISPENSING_CASH Dispensing $150.0
+Withdrawal Transaction: {'id': 'tx_981a3', 'amount': 1500.0, 'status': 'COMPLETED'}
+WebSocket received event: DISPENSING_CASH Dispensing ₹1500.0
 
 === 9. Testing Temporary Delegations ===
-Created Delegation: Max Limit: $120.0, Beneficiary: +15559876543
+Created Delegation: Max Limit: ₹5000.0, Beneficiary: +91 98765 43210
 
 === ALL END-TO-END INTEGRATION TESTS PASSED WITH 100% SUCCESS! ===
 ```

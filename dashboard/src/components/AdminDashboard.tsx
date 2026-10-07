@@ -362,7 +362,7 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-slate-600 font-sans">{tx.transaction_type}</td>
                     <td className="px-4 py-3 font-bold text-emerald-600 text-sm">
-                      ${tx.amount.toFixed(2)}
+                      ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-sans font-semibold">
@@ -429,7 +429,7 @@ export const AdminDashboard: React.FC = () => {
                 
                 <div className="mt-3 flex items-baseline justify-between font-mono pt-2 border-t border-slate-200/60">
                   <span className="text-xs text-slate-500 font-sans">Balance:</span>
-                  <span className="text-sm font-bold text-emerald-600">${u.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm font-bold text-emerald-600">₹{u.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
