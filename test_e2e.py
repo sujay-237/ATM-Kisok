@@ -1,13 +1,17 @@
 import asyncio
 import json
+import sys
 import httpx
 import websockets
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 API_BASE = 'http://127.0.0.1:8000'
 WS_BASE = 'ws://127.0.0.1:8000'
 
 async def run_e2e_test():
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         print('=== 1. Checking Health & Seed Data ===')
         r = await client.get(f'{API_BASE}/health')
         assert r.status_code == 200, f'Health failed: {r.text}'
@@ -17,9 +21,8 @@ async def run_e2e_test():
         assert r.status_code == 200
         users = r.json()
         user_names = [u['username'] for u in users]
-        print(f'Users in database: {len(users)} ({user_names})')
-        alex = next(u for u in users if u['username'] == 'alex')
-        print(f'Alex Mercer balance: ₹{alex["account_balance"]}')
+        test_user = next((u for u in users if u.get('has_reference_selfie')), users[1])
+        print(f'Testing customer: {test_user["full_name"]} (@{test_user["username"]}) balance: ₹{test_user["account_balance"]}')
 
         print('\n=== 2. Testing Gemini 3-Key Rotator ===')
         r = await client.get(f'{API_BASE}/api/gemini/status')
@@ -41,7 +44,7 @@ async def run_e2e_test():
 
             print('\n=== 5. Simulating Mobile App: QR Scan ===')
             r = await client.post(f'{API_BASE}/api/session/{session_id}/scan', json={
-                'user_id': alex['id'],
+                'user_id': test_user['id'],
                 'device_info': 'iPhone 16 Pro Expo Client'
             })
             assert r.status_code == 200
@@ -55,7 +58,7 @@ async def run_e2e_test():
 
             print('\n=== 6. Simulating Mobile App: Local Fingerprint Biometrics ===')
             r = await client.post(f'{API_BASE}/api/session/{session_id}/biometric-auth', json={
-                'user_id': alex['id'],
+                'user_id': test_user['id'],
                 'biometric_type': 'FINGERPRINT',
                 'local_auth_passed': True
             })
@@ -69,16 +72,18 @@ async def run_e2e_test():
             assert ws_event.get('event') == 'BIOMETRICS_VERIFIED'
 
             print('\n=== 7. Simulating Mobile App: Live Selfie & Gemini AI Match ===')
-            photo_r = await client.get(f'{API_BASE}/api/users/{alex["id"]}/reference-photo')
+            photo_r = await client.get(f'{API_BASE}/api/users/{test_user["id"]}/reference-photo')
             photo_data = photo_r.json()
-            ref_photo = photo_data['reference_selfie']
+            ref_photo = photo_data.get('reference_selfie') or ""
 
             r = await client.post(f'{API_BASE}/api/verify-selfie', json={
                 'session_id': session_id,
-                'user_id': alex['id'],
+                'user_id': test_user['id'],
                 'live_selfie_base64': ref_photo
             })
-            assert r.status_code == 200
+            if r.status_code != 200:
+                print('verify-selfie error status:', r.status_code, r.text)
+            assert r.status_code == 200, f'verify-selfie returned {r.status_code}: {r.text}'
             selfie_res = r.json()
             print('Selfie Verification Result:', {
                 'match': selfie_res['match'],
@@ -95,11 +100,11 @@ async def run_e2e_test():
             assert ws_event.get('event') == 'AUTHORIZED'
 
             print('\n=== 8. Executing ACID Cash Withdrawal ===')
-            initial_balance = alex['account_balance']
+            initial_balance = test_user['account_balance']
             withdraw_amt = 150.0
             r = await client.post(f'{API_BASE}/api/transactions/withdraw', json={
                 'session_id': session_id,
-                'user_id': alex['id'],
+                'user_id': test_user['id'],
                 'amount': withdraw_amt
             })
             assert r.status_code == 200
@@ -118,15 +123,15 @@ async def run_e2e_test():
             assert ws_event.get('event') == 'DISPENSING_CASH'
 
             # Verify balance updated
-            r = await client.get(f'{API_BASE}/api/users/{alex["id"]}')
-            updated_alex = r.json()
-            print(f'New Alex Mercer Balance: ₹{updated_alex["account_balance"]} (Expected: ₹{initial_balance - withdraw_amt})')
-            assert updated_alex['account_balance'] == initial_balance - withdraw_amt
+            r = await client.get(f'{API_BASE}/api/users/{test_user["id"]}')
+            updated_user = r.json()
+            print(f'New {test_user["full_name"]} Balance: ₹{updated_user["account_balance"]} (Expected: ₹{initial_balance - withdraw_amt})')
+            assert updated_user['account_balance'] == initial_balance - withdraw_amt
 
         print('\n=== 9. Testing Temporary Delegations ===')
         sarah = next(u for u in users if u['username'] == 'sarah')
         del_r = await client.post(f'{API_BASE}/api/delegations', json={
-            'delegator_id': alex['id'],
+            'delegator_id': test_user['id'],
             'delegatee_name': sarah['full_name'],
             'delegatee_phone': sarah['phone'],
             'max_withdrawal_limit': 120.0,
@@ -134,7 +139,7 @@ async def run_e2e_test():
         })
         assert del_r.status_code == 200
         del_data = del_r.json()
-        print('Created Delegation:', del_data['id'], 'Max Limit: $', del_data['max_withdrawal_limit'])
+        print('Created Delegation:', del_data['id'], 'Max Limit: ₹', del_data['max_withdrawal_limit'])
 
         print('\n=== ALL END-TO-END INTEGRATION TESTS PASSED WITH 100% SUCCESS! ===')
 

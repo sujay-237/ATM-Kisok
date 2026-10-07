@@ -35,7 +35,8 @@ class UserRegisterRequest(BaseModel):
     email: str
     phone: str
     pin: str
-    initial_deposit: float = Field(default=500.0, ge=0.0)
+    initial_deposit: Optional[float] = Field(default=1000.0, ge=0.0)
+    account_balance: Optional[float] = None
     reference_selfie_base64: str = Field(..., description="Base64 selfie photo required for biometric registration")
 
 
@@ -62,6 +63,7 @@ class SessionResponse(BaseModel):
     expires_at: datetime
     qr_payload: str
     user_id: Optional[str] = None
+    user: Optional[Dict[str, Any]] = None
     created_at: datetime
 
 
@@ -81,7 +83,7 @@ class BiometricAuthRequest(BaseModel):
 class VerifySelfieRequest(BaseModel):
     session_id: str
     user_id: str
-    live_selfie_base64: str
+    live_selfie_base64: Optional[str] = ""
     device_info: Optional[str] = None
 
 

@@ -9,28 +9,59 @@ def hash_pin(pin: str) -> str:
 
 
 async def seed_database(db: AsyncIOMotorDatabase) -> None:
-    """
-    Seeds ONLY the system administrator account if no admin exists.
-    No dummy users, no dummy transactions, no dummy delegations.
-    """
-    admin_exists = await db["users"].find_one({"role": "admin"})
-    if admin_exists:
-        return
-
     now = utc_now()
-    admin_user = {
-        "id": str(uuid.uuid4()),
-        "username": "admin",
-        "email": "admin@bank.internal",
-        "phone": "+1 800-555-0100",
-        "full_name": "Bank Administrator",
-        "hashed_pin": hash_pin("9999"),
-        "account_balance": 0.0,
-        "reference_selfie": None,
-        "role": "admin",
-        "is_active": True,
-        "created_at": now,
-        "updated_at": now,
-    }
+    admin_exists = await db["users"].find_one({"role": "admin"})
+    if not admin_exists:
+        admin_user = {
+            "id": str(uuid.uuid4()),
+            "username": "admin",
+            "email": "admin@bank.internal",
+            "phone": "+91 800-555-0100",
+            "full_name": "Bank Administrator",
+            "hashed_pin": hash_pin("9999"),
+            "account_balance": 0.0,
+            "reference_selfie": None,
+            "role": "admin",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db["users"].insert_one(admin_user)
 
-    await db["users"].insert_one(admin_user)
+    # Ensure demo customer alex exists
+    alex_exists = await db["users"].find_one({"username": "alex"})
+    if not alex_exists:
+        alex_user = {
+            "id": str(uuid.uuid4()),
+            "username": "alex",
+            "email": "alex@mercer.bank",
+            "phone": "+91 98765 43210",
+            "full_name": "Alex Mercer",
+            "hashed_pin": hash_pin("1234"),
+            "account_balance": 25000.0,
+            "reference_selfie": None,
+            "role": "user",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db["users"].insert_one(alex_user)
+
+    # Ensure demo customer sarah exists
+    sarah_exists = await db["users"].find_one({"username": "sarah"})
+    if not sarah_exists:
+        sarah_user = {
+            "id": str(uuid.uuid4()),
+            "username": "sarah",
+            "email": "sarah@mercer.bank",
+            "phone": "+91 98765 43211",
+            "full_name": "Sarah Mercer",
+            "hashed_pin": hash_pin("4321"),
+            "account_balance": 12000.0,
+            "reference_selfie": None,
+            "role": "user",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db["users"].insert_one(sarah_user)

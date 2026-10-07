@@ -64,9 +64,12 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
 
       if (!selfieBase64) {
         // Fallback: fetch the user's reference photo from backend as the test selfie
-        const photoRes = await fetch(`http://localhost:8000/api/users/${user.id}/reference-photo`);
-        const photoData = await photoRes.json();
-        selfieBase64 = photoData.reference_selfie || '';
+        try {
+          const photoData = await mobileApi.getUserReferencePhoto(user.id);
+          selfieBase64 = photoData.reference_selfie || '';
+        } catch {
+          selfieBase64 = '';
+        }
       }
 
       const result = await mobileApi.verifySelfie(session.sessionId, user.id, selfieBase64);

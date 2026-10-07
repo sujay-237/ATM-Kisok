@@ -67,6 +67,12 @@ async def register(payload: UserRegisterRequest, db: AsyncIOMotorDatabase = Depe
 
     user_id = str(uuid.uuid4())
     now = utc_now()
+    deposit_amt = 1000.0
+    if payload.initial_deposit is not None:
+        deposit_amt = float(payload.initial_deposit)
+    elif payload.account_balance is not None:
+        deposit_amt = float(payload.account_balance)
+
     user_doc = {
         "id": user_id,
         "username": username,
@@ -74,7 +80,7 @@ async def register(payload: UserRegisterRequest, db: AsyncIOMotorDatabase = Depe
         "phone": phone,
         "full_name": payload.full_name.strip(),
         "hashed_pin": hash_pin(payload.pin),
-        "account_balance": float(payload.initial_deposit),
+        "account_balance": deposit_amt,
         "reference_selfie": payload.reference_selfie_base64.strip(),
         "role": "user",
         "is_active": True,

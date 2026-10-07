@@ -124,7 +124,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegisterSucces
 
       onRegisterSuccess(res.user);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      const msg = err instanceof Error ? err.message : 'Registration failed';
+      setError(`${msg} (Backend: ${mobileApi.getBaseUrl()})`);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { Header } from './components/Header';
 import { SessionQRCode } from './components/SessionQRCode';
 import { AuthProcessingScreen } from './components/AuthProcessingScreen';
@@ -8,8 +9,9 @@ import { TransactionSuccessScreen } from './components/TransactionSuccessScreen'
 import { KioskStep, KioskSession, KioskUser, TransactionSuccessData } from './types';
 import { sounds } from './utils/sound';
 
-const API_BASE = 'http://localhost:8000';
-const WS_BASE = 'ws://localhost:8000';
+const hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+const API_BASE = `http://${hostname}:8000`;
+const WS_BASE = `ws://${hostname}:8000`;
 const KIOSK_ID = 'KIOSK-EAST-01';
 
 export const App: React.FC = () => {
@@ -72,7 +74,7 @@ export const App: React.FC = () => {
       console.log(`[ATM WS] Connected to session ${session.session_id}`);
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const payload = JSON.parse(event.data);
         console.log('[ATM WS] Incoming update:', payload);
@@ -87,6 +89,16 @@ export const App: React.FC = () => {
           sounds.playAuthSuccess();
           if (payload.user) {
             setAuthenticatedUser(payload.user);
+          } else if (payload.user_id) {
+            try {
+              const uRes = await fetch(`${API_BASE}/api/users/${payload.user_id}`);
+              if (uRes.ok) {
+                const uData = await uRes.json();
+                setAuthenticatedUser(uData);
+              }
+            } catch (err) {
+              console.warn('Could not fetch user details from WS payload:', err);
+            }
           }
           setStep('SELECT_AMOUNT');
         } else if (payload.event === 'DISPENSING_CASH' || payload.status === 'COMPLETED') {
@@ -133,6 +145,54 @@ export const App: React.FC = () => {
       ws.close();
     };
   }, [session?.session_id, createNewSession]);
+
+  // Polling fallback: checks backend session status in case WebSocket drops or disconnects
+  useEffect(() => {
+    if (!session?.session_id) return;
+    if (step === 'SELECT_AMOUNT' || step === 'DISPENSING' || step === 'SUCCESS') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/session/${session.session_id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.status === 'QR_SCANNED' && step === 'QR_DISPLAY') {
+          sounds.playKeypadBeep();
+          setStep('MOBILE_SCANNED');
+        } else if (data.status === 'BIOMETRICS_VERIFIED' && (step === 'QR_DISPLAY' || step === 'MOBILE_SCANNED')) {
+          sounds.playKeypadBeep();
+          setStep('BIOMETRIC_VERIFYING');
+        } else if (data.status === 'AUTHORIZED' && step !== 'SELECT_AMOUNT' && step !== 'DISPENSING' && step !== 'SUCCESS') {
+          sounds.playAuthSuccess();
+          if (data.user) {
+            setAuthenticatedUser(data.user);
+          } else if (data.user_id) {
+            try {
+              const uRes = await fetch(`${API_BASE}/api/users/${data.user_id}`);
+              if (uRes.ok) {
+                const uData = await uRes.json();
+                setAuthenticatedUser(uData);
+              }
+            } catch (err) {
+              console.warn('Could not fetch user info in polling fallback:', err);
+            }
+          }
+          setStep('SELECT_AMOUNT');
+        } else if (data.status === 'FAILED') {
+          sounds.playError();
+          setErrorMessage(data.failure_reason || 'Biometric authentication failed. Access denied.');
+          setTimeout(() => {
+            createNewSession();
+          }, 4000);
+        }
+      } catch (err) {
+        // Silently ignore network blips in polling
+      }
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [session?.session_id, step, createNewSession]);
 
   // Initial load
   useEffect(() => {
@@ -268,14 +328,22 @@ export const App: React.FC = () => {
           />
         )}
 
-        {step === 'SELECT_AMOUNT' && authenticatedUser && (
-          <AmountSelectionScreen
-            user={authenticatedUser}
-            onConfirmWithdrawal={handleConfirmWithdrawal}
-            onCancel={createNewSession}
-            loading={loadingSession}
-            error={errorMessage}
-          />
+        {step === 'SELECT_AMOUNT' && (
+          authenticatedUser ? (
+            <AmountSelectionScreen
+              user={authenticatedUser}
+              onConfirmWithdrawal={handleConfirmWithdrawal}
+              onCancel={createNewSession}
+              loading={loadingSession}
+              error={errorMessage}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-10 bg-white rounded-3xl border border-slate-200 shadow-md max-w-md mx-auto text-center">
+              <RefreshCw className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+              <h3 className="text-lg font-bold text-slate-800">Account Verified!</h3>
+              <p className="text-xs text-slate-500 mt-1">Retrieving account balance and limits...</p>
+            </div>
+          )
         )}
 
         {step === 'DISPENSING' && (

@@ -56,11 +56,51 @@ async def create_kiosk_session(
     )
 
 
-@router.get("/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    doc = await db["auth_sessions"].find_one({"id": session_id})
+@router.get("/active/latest", response_model=SessionResponse)
+async def get_active_session(
+    kiosk_id: str = "KIOSK-EAST-01",
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Returns the most recent active session for the given kiosk.
+    If none exists or expired, creates a new one so mobile and kiosk sync seamlessly.
+    """
+    now = utc_now()
+    doc = await db["auth_sessions"].find_one(
+        {
+            "kiosk_id": kiosk_id,
+            "expires_at": {"$gt": now},
+            "status": {"$in": ["CREATED", "QR_SCANNED", "BIOMETRICS_VERIFIED", "AUTHORIZED"]},
+        },
+        sort=[("created_at", -1)],
+    )
+
     if not doc:
-        raise HTTPException(status_code=404, detail="ATM Session not found")
+        session_id = str(uuid.uuid4())
+        expires_at = now + timedelta(seconds=settings.ATM_SESSION_EXPIRY_SECONDS)
+        doc = {
+            "id": session_id,
+            "kiosk_id": kiosk_id,
+            "status": "CREATED",
+            "user_id": None,
+            "failure_reason": None,
+            "device_info": None,
+            "expires_at": expires_at,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db["auth_sessions"].insert_one(doc)
+
+    user_info = None
+    if doc.get("user_id"):
+        u = await db["users"].find_one({"id": doc["user_id"]})
+        if u:
+            user_info = {
+                "id": u["id"],
+                "full_name": u["full_name"],
+                "account_balance": u.get("account_balance", 0.0),
+                "role": u.get("role", "user"),
+            }
 
     qr_payload = f"atm://session?id={doc['id']}&kiosk={doc['kiosk_id']}"
     return SessionResponse(
@@ -70,6 +110,37 @@ async def get_session(session_id: str, db: AsyncIOMotorDatabase = Depends(get_db
         expires_at=doc["expires_at"],
         qr_payload=qr_payload,
         user_id=doc.get("user_id"),
+        user=user_info,
+        created_at=doc["created_at"],
+    )
+
+
+@router.get("/{session_id}", response_model=SessionResponse)
+async def get_session(session_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    doc = await db["auth_sessions"].find_one({"id": session_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="ATM Session not found")
+
+    user_info = None
+    if doc.get("user_id"):
+        u = await db["users"].find_one({"id": doc["user_id"]})
+        if u:
+            user_info = {
+                "id": u["id"],
+                "full_name": u["full_name"],
+                "account_balance": u.get("account_balance", 0.0),
+                "role": u.get("role", "user"),
+            }
+
+    qr_payload = f"atm://session?id={doc['id']}&kiosk={doc['kiosk_id']}"
+    return SessionResponse(
+        session_id=doc["id"],
+        kiosk_id=doc["kiosk_id"],
+        status=doc["status"],
+        expires_at=doc["expires_at"],
+        qr_payload=qr_payload,
+        user_id=doc.get("user_id"),
+        user=user_info,
         created_at=doc["created_at"],
     )
 
