@@ -25,6 +25,7 @@ export const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
+  const isWithdrawingRef = useRef<boolean>(false);
 
   // Initialize a new session token from FastAPI backend
   const createNewSession = useCallback(async () => {
@@ -202,6 +203,8 @@ export const App: React.FC = () => {
   // Execute Withdrawal API call
   const handleConfirmWithdrawal = async (amount: number) => {
     if (!session || !authenticatedUser) return;
+    if (isWithdrawingRef.current || loadingSession) return;
+    isWithdrawingRef.current = true;
 
     try {
       setLoadingSession(true);
@@ -232,6 +235,7 @@ export const App: React.FC = () => {
         timestamp: txResult.created_at,
       });
 
+      setErrorMessage(null);
       setStep('DISPENSING');
     } catch (err: unknown) {
       sounds.playError();
@@ -239,6 +243,7 @@ export const App: React.FC = () => {
       setErrorMessage(msg);
     } finally {
       setLoadingSession(false);
+      isWithdrawingRef.current = false;
     }
   };
 

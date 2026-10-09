@@ -56,6 +56,7 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
   };
 
   const handleConfirm = () => {
+    if (loading) return;
     const val = parseFloat(customAmountStr);
     if (!isNaN(val) && val > 0) {
       sounds.playKeypadBeep();
@@ -100,9 +101,18 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
       </div>
 
       {error && (
-        <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2.5 text-xs">
-          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span className="font-medium">{error}</span>
+        <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span className="font-medium">{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold text-[11px] transition shrink-0"
+          >
+            Start New Session
+          </button>
         </div>
       )}
 

@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { MobileUser, VerificationResult, DelegationItem } from '../types';
 
 // Default LAN IP of development host machine
-const DEFAULT_HOST_IP = '192.168.1.13';
+const DEFAULT_HOST_IP = '10.201.91.55';
 
 export function getDefaultApiBase(): string {
   if (typeof window !== 'undefined') {

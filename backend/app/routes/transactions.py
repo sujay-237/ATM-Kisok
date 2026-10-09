@@ -34,10 +34,38 @@ async def process_withdrawal(
         raise HTTPException(status_code=404, detail="ATM Session not found")
 
     if session_doc.get("status") not in ("AUTHORIZED", "BIOMETRICS_VERIFIED"):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Cannot withdraw: session is not authorized (Current status: {session_doc.get('status')})",
-        )
+        # Idempotency check: if this session already completed a transaction (e.g. double-click or fast retry),
+        # return the existing transaction response safely instead of throwing a 403 error
+        if session_doc.get("status") == "COMPLETED":
+            existing_tx = await db["transactions"].find_one({"session_id": payload.session_id})
+            if existing_tx:
+                return TransactionResponse(
+                    id=existing_tx["id"],
+                    session_id=existing_tx.get("session_id"),
+                    user_id=existing_tx["user_id"],
+                    delegated_by_user_id=existing_tx.get("delegated_by_user_id"),
+                    amount=existing_tx["amount"],
+                    transaction_type=existing_tx.get("transaction_type", "WITHDRAWAL"),
+                    status="COMPLETED",
+                    kiosk_id=existing_tx.get("kiosk_id", session_doc["kiosk_id"]),
+                    anomaly_flag=existing_tx.get("anomaly_flag", False),
+                    anomaly_reason=existing_tx.get("anomaly_reason"),
+                    created_at=existing_tx.get("created_at", utc_now()),
+                )
+            raise HTTPException(
+                status_code=400,
+                detail="This ATM session has already been completed. Please start a new session.",
+            )
+        elif session_doc.get("status") == "EXPIRED":
+            raise HTTPException(
+                status_code=400,
+                detail="This ATM session has expired. Please scan a fresh QR code at the kiosk.",
+            )
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot withdraw: session is not authorized (Current status: {session_doc.get('status')})",
+            )
 
     # Fetch User
     user_doc = await db["users"].find_one(

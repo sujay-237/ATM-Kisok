@@ -321,7 +321,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onGoTo
                 type="text"
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="http://192.168.1.13:8000"
+                placeholder="http://10.201.91.55:8000"
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
@@ -330,10 +330,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onGoTo
             <div className="flex flex-wrap gap-2 text-[10px]">
               <button
                 type="button"
-                onClick={() => setServerUrl('http://192.168.1.13:8000')}
+                onClick={() => setServerUrl('http://10.201.91.55:8000')}
                 className="px-2 py-1 rounded bg-slate-100 text-slate-700 font-mono hover:bg-slate-200"
               >
-                Wi-Fi: 192.168.1.13:8000
+                Wi-Fi: 10.201.91.55:8000
               </button>
               <button
                 type="button"

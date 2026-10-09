@@ -30,7 +30,7 @@ def doc_to_user_response(doc: dict) -> UserResponse:
         phone=doc["phone"],
         full_name=doc["full_name"],
         role=doc.get("role", "user"),
-        account_balance=doc.get("account_balance", 0.0),
+        account_balance=float(doc.get("account_balance") if doc.get("account_balance") is not None else doc.get("balance", 0.0)),
         is_active=doc.get("is_active", True),
         has_reference_selfie=bool(selfie and len(selfie) > 20),
         created_at=doc["created_at"],
