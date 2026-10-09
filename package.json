@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -n \"backend,kiosk,dash,mobile\" -c \"cyan,green,blue,magenta\" \"npm run dev:backend\" \"npm run dev:kiosk\" \"npm run dev:dashboard\" \"npm run dev:mobile\"",
     "dev:ui": "concurrently -n \"kiosk,dash,mobile\" -c \"green,blue,magenta\" \"npm run dev:kiosk\" \"npm run dev:dashboard\" \"npm run dev:mobile\"",
-    "dev:backend": "cd backend && .\\venv\\Scripts\\uvicorn app.main:app --port 8000 --reload",
+    "dev:backend": "cd backend && .\\venv\\Scripts\\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
     "dev:kiosk": "cd atm-kiosk && npm run dev",
     "dev:dashboard": "cd dashboard && npm run dev",
     "dev:mobile": "cd mobile-app && npm run web"

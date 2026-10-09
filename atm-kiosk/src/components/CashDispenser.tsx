@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Banknote } from 'lucide-react';
 import { sounds } from '../utils/sound';
 
@@ -13,6 +13,9 @@ export const CashDispenser: React.FC<CashDispenserProps> = ({
 }) => {
   const [shutterOpen, setShutterOpen] = useState(false);
   const [billsCount, setBillsCount] = useState(0);
+  const onDispenseCompleteRef = useRef(onDispenseComplete);
+  onDispenseCompleteRef.current = onDispenseComplete;
+  const hasFinishedRef = useRef(false);
 
   useEffect(() => {
     sounds.playCashDispenser();
@@ -32,8 +35,12 @@ export const CashDispenser: React.FC<CashDispenserProps> = ({
     }, 300);
 
     const completeTimer = setTimeout(() => {
-      sounds.playAuthSuccess();
-      onDispenseComplete();
+      if (!hasFinishedRef.current) {
+        hasFinishedRef.current = true;
+        sounds.playAuthSuccess();
+        console.log('[CashDispenser] Dispense animation complete. Switching to receipt page...');
+        onDispenseCompleteRef.current();
+      }
     }, 3600);
 
     return () => {
@@ -41,7 +48,7 @@ export const CashDispenser: React.FC<CashDispenserProps> = ({
       clearInterval(countTimer);
       clearTimeout(completeTimer);
     };
-  }, [amount, onDispenseComplete]);
+  }, [amount]);
 
   return (
     <div className="flex flex-col items-center justify-center max-w-lg mx-auto py-10 px-4 text-center">

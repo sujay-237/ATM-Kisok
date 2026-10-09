@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { Smartphone, RefreshCw, AlertCircle, Fingerprint, Camera, ShieldCheck } from 'lucide-react';
+import { Smartphone, RefreshCw, AlertCircle, Fingerprint, Camera } from 'lucide-react';
 import { KioskSession } from '../types';
 import { sounds } from '../utils/sound';
 

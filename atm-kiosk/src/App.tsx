@@ -26,6 +26,11 @@ export const App: React.FC = () => {
 
   const socketRef = useRef<WebSocket | null>(null);
   const isWithdrawingRef = useRef<boolean>(false);
+  const stepRef = useRef<KioskStep>(step);
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
   // Initialize a new session token from FastAPI backend
   const createNewSession = useCallback(async () => {
@@ -34,6 +39,7 @@ export const App: React.FC = () => {
       setErrorMessage(null);
       setAuthenticatedUser(null);
       setTransactionData(null);
+      stepRef.current = 'QR_DISPLAY';
       setStep('QR_DISPLAY');
 
       // Close previous WebSocket if any
@@ -81,13 +87,16 @@ export const App: React.FC = () => {
         console.log('[ATM WS] Incoming update:', payload);
 
         if (payload.event === 'QR_SCANNED' || payload.status === 'QR_SCANNED') {
-          sounds.playKeypadBeep();
-          setStep('MOBILE_SCANNED');
+          if (stepRef.current === 'QR_DISPLAY') {
+            sounds.playKeypadBeep();
+            setStep('MOBILE_SCANNED');
+          }
         } else if (payload.event === 'BIOMETRICS_VERIFIED' || payload.status === 'BIOMETRICS_VERIFIED') {
-          sounds.playKeypadBeep();
-          setStep('BIOMETRIC_VERIFYING');
+          if (stepRef.current === 'QR_DISPLAY' || stepRef.current === 'MOBILE_SCANNED') {
+            sounds.playKeypadBeep();
+            setStep('BIOMETRIC_VERIFYING');
+          }
         } else if (payload.event === 'AUTHORIZED' || payload.status === 'AUTHORIZED') {
-          sounds.playAuthSuccess();
           if (payload.user) {
             setAuthenticatedUser(payload.user);
           } else if (payload.user_id) {
@@ -101,24 +110,41 @@ export const App: React.FC = () => {
               console.warn('Could not fetch user details from WS payload:', err);
             }
           }
-          setStep('SELECT_AMOUNT');
+          // Guard: NEVER revert back to SELECT_AMOUNT if already dispensing cash or on receipt screen!
+          if (
+            stepRef.current !== 'SELECT_AMOUNT' &&
+            stepRef.current !== 'DISPENSING' &&
+            stepRef.current !== 'SUCCESS'
+          ) {
+            sounds.playAuthSuccess();
+            setStep('SELECT_AMOUNT');
+          }
         } else if (payload.event === 'DISPENSING_CASH' || payload.status === 'COMPLETED') {
           // Cash dispense announced
-          setWithdrawalAmount(payload.amount);
-          setTransactionData({
-            transaction_id: payload.transaction_id,
-            amount: payload.amount,
-            remaining_balance: payload.remaining_balance,
-            anomaly_flag: payload.anomaly_flag || false,
-            timestamp: new Date().toISOString(),
-          });
-          setStep('DISPENSING');
+          if (payload.amount) {
+            setWithdrawalAmount(payload.amount);
+          }
+          if (payload.transaction_id) {
+            setTransactionData((prev) => ({
+              transaction_id: payload.transaction_id,
+              amount: payload.amount ?? prev?.amount ?? 1000,
+              remaining_balance: payload.remaining_balance ?? prev?.remaining_balance ?? 0,
+              anomaly_flag: payload.anomaly_flag ?? prev?.anomaly_flag ?? false,
+              timestamp: prev?.timestamp || new Date().toISOString(),
+            }));
+          }
+          // Guard: Only advance to DISPENSING if we have not already completed or currently dispensing
+          if (stepRef.current !== 'DISPENSING' && stepRef.current !== 'SUCCESS') {
+            setStep('DISPENSING');
+          }
         } else if (payload.event === 'AUTH_FAILED' || payload.status === 'FAILED') {
-          sounds.playError();
-          setErrorMessage(payload.reason || 'Biometric authentication failed. Access denied.');
-          setTimeout(() => {
-            createNewSession();
-          }, 4000);
+          if (stepRef.current !== 'DISPENSING' && stepRef.current !== 'SUCCESS') {
+            sounds.playError();
+            setErrorMessage(payload.reason || 'Biometric authentication failed. Access denied.');
+            setTimeout(() => {
+              createNewSession();
+            }, 4000);
+          }
         }
       } catch (e) {
         console.error('Error parsing WebSocket message:', e);
@@ -152,26 +178,43 @@ export const App: React.FC = () => {
     if (!session?.session_id) return;
     if (step === 'SELECT_AMOUNT' || step === 'DISPENSING' || step === 'SUCCESS') return;
 
+    let isCancelled = false;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/api/session/${session.session_id}`);
-        if (!res.ok) return;
+        if (!res.ok || isCancelled) return;
         const data = await res.json();
+        if (isCancelled) return;
 
-        if (data.status === 'QR_SCANNED' && step === 'QR_DISPLAY') {
+        // Double check real-time step to avoid async promise race conditions
+        const curStep = stepRef.current as string;
+        if (
+          curStep === 'SELECT_AMOUNT' ||
+          curStep === 'DISPENSING' ||
+          curStep === 'SUCCESS'
+        ) {
+          return;
+        }
+
+        if (data.status === 'QR_SCANNED' && curStep === 'QR_DISPLAY') {
           sounds.playKeypadBeep();
           setStep('MOBILE_SCANNED');
-        } else if (data.status === 'BIOMETRICS_VERIFIED' && (step === 'QR_DISPLAY' || step === 'MOBILE_SCANNED')) {
+        } else if (data.status === 'BIOMETRICS_VERIFIED' && (curStep === 'QR_DISPLAY' || curStep === 'MOBILE_SCANNED')) {
           sounds.playKeypadBeep();
           setStep('BIOMETRIC_VERIFYING');
-        } else if (data.status === 'AUTHORIZED' && step !== 'SELECT_AMOUNT' && step !== 'DISPENSING' && step !== 'SUCCESS') {
+        } else if (
+          data.status === 'AUTHORIZED' &&
+          curStep !== 'SELECT_AMOUNT' &&
+          curStep !== 'DISPENSING' &&
+          curStep !== 'SUCCESS'
+        ) {
           sounds.playAuthSuccess();
           if (data.user) {
             setAuthenticatedUser(data.user);
           } else if (data.user_id) {
             try {
               const uRes = await fetch(`${API_BASE}/api/users/${data.user_id}`);
-              if (uRes.ok) {
+              if (uRes.ok && !isCancelled) {
                 const uData = await uRes.json();
                 setAuthenticatedUser(uData);
               }
@@ -179,12 +222,22 @@ export const App: React.FC = () => {
               console.warn('Could not fetch user info in polling fallback:', err);
             }
           }
-          setStep('SELECT_AMOUNT');
-        } else if (data.status === 'FAILED') {
+          if (
+            (stepRef.current as string) !== 'SELECT_AMOUNT' &&
+            (stepRef.current as string) !== 'DISPENSING' &&
+            (stepRef.current as string) !== 'SUCCESS'
+          ) {
+            setStep('SELECT_AMOUNT');
+          }
+        } else if (
+          data.status === 'FAILED' &&
+          curStep !== 'DISPENSING' &&
+          curStep !== 'SUCCESS'
+        ) {
           sounds.playError();
           setErrorMessage(data.failure_reason || 'Biometric authentication failed. Access denied.');
           setTimeout(() => {
-            createNewSession();
+            if (!isCancelled) createNewSession();
           }, 4000);
         }
       } catch (err) {
@@ -192,7 +245,10 @@ export const App: React.FC = () => {
       }
     }, 1200);
 
-    return () => clearInterval(interval);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
   }, [session?.session_id, step, createNewSession]);
 
   // Initial load
@@ -227,15 +283,21 @@ export const App: React.FC = () => {
 
       const txResult = await res.json();
       setWithdrawalAmount(amount);
+      const remaining = typeof txResult.remaining_balance === 'number'
+        ? txResult.remaining_balance
+        : Math.max(0, (authenticatedUser.account_balance - amount));
       setTransactionData({
         transaction_id: txResult.id,
-        amount: txResult.amount,
-        remaining_balance: authenticatedUser.account_balance - amount,
-        anomaly_flag: txResult.anomaly_flag,
-        timestamp: txResult.created_at,
+        amount: txResult.amount || amount,
+        remaining_balance: remaining,
+        anomaly_flag: txResult.anomaly_flag || false,
+        timestamp: txResult.created_at || new Date().toISOString(),
       });
 
+      // Update local account balance
+      setAuthenticatedUser((prev) => (prev ? { ...prev, account_balance: remaining } : prev));
       setErrorMessage(null);
+      stepRef.current = 'DISPENSING';
       setStep('DISPENSING');
     } catch (err: unknown) {
       sounds.playError();
@@ -246,6 +308,12 @@ export const App: React.FC = () => {
       isWithdrawingRef.current = false;
     }
   };
+
+  const handleDispenseComplete = useCallback(() => {
+    console.log('[ATM] Cash dispense finished. Advancing to receipt screen (SUCCESS).');
+    stepRef.current = 'SUCCESS';
+    setStep('SUCCESS');
+  }, []);
 
   // Helper: 1-Click Simulator to test mobile pairing without opening second window
   const handleSimulateMobileScanAndAuth = async () => {
@@ -354,9 +422,7 @@ export const App: React.FC = () => {
         {step === 'DISPENSING' && (
           <CashDispenser
             amount={withdrawalAmount}
-            onDispenseComplete={() => {
-              setStep('SUCCESS');
-            }}
+            onDispenseComplete={handleDispenseComplete}
           />
         )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { CheckCircle2, Receipt, ArrowRight, Printer } from 'lucide-react';
 import { TransactionSuccessData, KioskUser } from '../types';
 import { sounds } from '../utils/sound';
@@ -14,8 +14,11 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
   data,
   onFinish,
 }) => {
-  const [countdown, setCountdown] = useState<number>(12);
+  const [countdown, setCountdown] = useState<number>(15);
   const [printed, setPrinted] = useState<boolean>(false);
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+  const finishedTriggeredRef = useRef(false);
 
   useEffect(() => {
     sounds.playAuthSuccess();
@@ -24,7 +27,10 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onFinish();
+          if (!finishedTriggeredRef.current) {
+            finishedTriggeredRef.current = true;
+            onFinishRef.current();
+          }
           return 0;
         }
         return prev - 1;
@@ -32,7 +38,7 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [onFinish]);
+  }, []);
 
   const handlePrint = () => {
     sounds.playKeypadBeep();
@@ -67,26 +73,37 @@ export const TransactionSuccessScreen: React.FC<TransactionSuccessScreenProps> =
         <div className="py-5 text-center border-b border-slate-100">
           <p className="text-[11px] uppercase font-bold text-slate-400">Cash Dispensed</p>
           <p className="text-3xl font-mono font-bold text-slate-900 mt-0.5">
-            ₹{data.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span className="text-xs text-slate-400">INR</span>
+            ₹{Number(data?.amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+            <span className="text-xs text-slate-400">INR</span>
           </p>
         </div>
 
         <div className="py-4 space-y-2 font-mono text-xs text-slate-600">
           <div className="flex justify-between">
             <span>Account Holder:</span>
-            <span className="text-slate-900 font-semibold">{user.full_name}</span>
+            <span className="text-slate-900 font-semibold">{user?.full_name || 'Customer'}</span>
           </div>
           <div className="flex justify-between">
             <span>Transaction ID:</span>
-            <span className="text-slate-800">{data.transaction_id.slice(0, 16)}...</span>
+            <span className="text-slate-800 font-mono">
+              {(data?.transaction_id || 'TXN-SUCCESS').slice(0, 18)}
+              {(data?.transaction_id || '').length > 18 ? '...' : ''}
+            </span>
           </div>
           <div className="flex justify-between">
             <span>Remaining Balance:</span>
-            <span className="text-slate-900 font-semibold">₹{data.remaining_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span className="text-slate-900 font-semibold">
+              ₹{Number(data?.remaining_balance ?? user?.account_balance ?? 0).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
           <div className="flex justify-between">
             <span>Date & Time:</span>
-            <span>{new Date(data.timestamp).toLocaleString()}</span>
+            <span>
+              {data?.timestamp ? new Date(data.timestamp).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')}
+            </span>
           </div>
         </div>
       </div>
