@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import jsQR from 'jsqr';
-import { ArrowLeft, Scan, Camera, AlertCircle, RefreshCw, QrCode, CheckCircle2, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Camera, AlertCircle, RefreshCw, CheckCircle2, Zap } from 'lucide-react';
 import { MobileUser, ScannedSession } from '../types';
 import { mobileApi } from '../services/api';
 
 interface QRScannerScreenProps {
   user: MobileUser;
+  prestagedAmount: number | null;
   onScanSuccess: (session: ScannedSession) => void;
   onBack: () => void;
 }
 
 export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   user,
+  prestagedAmount,
   onScanSuccess,
   onBack,
 }) => {
@@ -35,42 +38,37 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       let sessionId = rawPayload.trim();
       let kioskId = 'KIOSK-EAST-01';
 
-      // Parse atm://session?id=...&kiosk=...
       if (rawPayload.includes('id=')) {
         const queryPart = rawPayload.includes('?') ? rawPayload.split('?')[1] : rawPayload;
         const urlParams = new URLSearchParams(queryPart);
         sessionId = urlParams.get('id') || sessionId;
         kioskId = urlParams.get('kiosk') || kioskId;
       } else {
-        // Try extracting standard UUID
         const uuidMatch = rawPayload.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
         if (uuidMatch) {
           sessionId = uuidMatch[0];
         }
       }
 
-      setScannedFeedback(`Session Linked: ${sessionId.slice(0, 8)}...`);
+      setScannedFeedback(`Key Verified: ${sessionId.slice(0, 8)}...`);
 
-      // Notify backend that mobile device paired with this kiosk session
-      await mobileApi.scanSessionQR(sessionId, user.id, 'Mobile Android App');
+      await mobileApi.scanSessionQR(sessionId, user.id, 'Mobile Android App', prestagedAmount);
 
-      // Stop camera stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
       setTimeout(() => {
-        onScanSuccess({ sessionId, kioskId });
+        onScanSuccess({ sessionId, kioskId, prestaged_amount: prestagedAmount });
       }, 500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid session QR code.');
+      setError(err instanceof Error ? err.message : 'Invalid session key.');
       isScanningRef.current = true;
     } finally {
       setLoading(false);
     }
-  }, [user.id, onScanSuccess]);
+  }, [user.id, prestagedAmount, onScanSuccess]);
 
-  // Frame scanner loop
   const scanLoop = useCallback(() => {
     if (!isScanningRef.current) return;
 
@@ -91,13 +89,11 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
           ctx.drawImage(video, 0, 0, width, height);
           const imageData = ctx.getImageData(0, 0, width, height);
 
-          // Real-time QR decoding with jsQR
           const code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: 'dontInvert',
           });
 
           if (code && code.data && code.data.trim()) {
-            console.log('[QR Scanner] Detected QR payload:', code.data);
             isScanningRef.current = false;
             handleProcessPayload(code.data);
             return;
@@ -150,7 +146,6 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
     };
   }, [scanLoop]);
 
-  // Connects to the active live session displayed on the ATM screen
   const handlePairWithActiveATM = async () => {
     try {
       setLoading(true);
@@ -160,11 +155,11 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       if (activeSession && activeSession.session_id) {
         await handleProcessPayload(activeSession.session_id);
       } else {
-        throw new Error('No active ATM session found on the kiosk.');
+        throw new Error('No active session found on the concierge terminal.');
       }
     } catch (e: unknown) {
       const err = e as { message?: string };
-      setError(err.message || 'Could not connect to active ATM screen.');
+      setError(err.message || 'Could not connect to active concierge terminal.');
       isScanningRef.current = true;
     } finally {
       setLoading(false);
@@ -172,39 +167,52 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-5 bg-slate-50 text-slate-900">
+    <div className="flex-1 flex flex-col justify-between p-5 bg-[#F5F2EB] text-[#171715] font-sans antialiased">
       {/* Top Bar */}
       <div>
-        <div className="flex items-center justify-between pt-2 mb-3">
-          <button
+        <div className="flex items-center justify-between pt-1 mb-2">
+          <motion.button
+            whileTap={{ scale: 0.94 }}
             onClick={onBack}
-            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 transition"
+            className="p-2 rounded-xl border border-[#E6E0D4] bg-[#FCFBF8] text-[#666156] hover:text-[#171715] transition shadow-warm-xs"
           >
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </motion.button>
           <div className="text-center">
-            <h2 className="text-sm font-bold text-slate-800">Scan ATM QR Code</h2>
-            <p className="text-[10px] text-slate-500 font-mono">Live Hardware Scanner</p>
+            <h2 className="text-base font-serif font-semibold text-[#171715]">Scan Concierge Key</h2>
+            <p className="text-[10px] text-[#9A9386] font-mono tracking-wider uppercase">Dynamic Terminal Pairing</p>
           </div>
           <div className="w-9" />
         </div>
 
+        {/* Feature 1: Express Pre-staged Pill Banner */}
+        {prestagedAmount && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-3 px-3 py-1.5 rounded-full bg-[#F4EFE4] border border-[#E2D4BC] text-[#B5935A] text-xs flex items-center justify-center gap-1.5 font-mono shadow-warm-xs font-semibold"
+          >
+            <Zap className="w-3.5 h-3.5 text-[#B5935A] fill-[#B5935A]" />
+            <span>Express ₹{prestagedAmount.toLocaleString()} Pre-Staged</span>
+          </motion.div>
+        )}
+
         {error && (
-          <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          <div className="mb-3 p-3 rounded-xl bg-[#FDF2F4] border border-[#F7D1D9] text-[#9F1239] text-xs flex items-center gap-2 font-mono">
+            <AlertCircle className="w-4 h-4 shrink-0 text-[#9F1239]" />
             <span>{error}</span>
           </div>
         )}
 
         {scannedFeedback && (
-          <div className="mb-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-mono">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          <div className="mb-3 p-3 rounded-xl bg-[#EBF5F0] border border-[#CDE5D9] text-[#155E43] text-xs flex items-center gap-2 font-mono">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[#155E43]" />
             <span>{scannedFeedback}</span>
           </div>
         )}
 
-        {/* Live Camera Viewfinder */}
-        <div className="relative aspect-square w-full max-w-[270px] mx-auto rounded-3xl bg-slate-950 overflow-hidden shadow-xl flex items-center justify-center my-3 border-2 border-slate-800">
+        {/* Viewfinder with Champagne Gold Corner Brackets */}
+        <div className="relative aspect-square w-full max-w-[270px] mx-auto rounded-3xl bg-[#171715] overflow-hidden shadow-warm-md flex items-center justify-center my-3 border border-[#E6E0D4]">
           <video
             ref={videoRef}
             playsInline
@@ -213,63 +221,73 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
             className="w-full h-full object-cover"
           />
 
-          {/* Animated Laser Scanning Line */}
-          <div className="absolute inset-0 pointer-events-none flex flex-col justify-center items-center">
-            <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-pulse" />
-          </div>
+          {/* Laser Scan Line in Soft Emerald */}
+          <motion.div
+            animate={{
+              y: [-110, 110, -110],
+              opacity: [0.6, 1, 0.6],
+            }}
+            transition={{
+              duration: 2.4,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="absolute inset-x-4 h-0.5 bg-[#B5935A] shadow-[0_0_8px_#B5935A] pointer-events-none"
+          />
 
-          {/* Viewfinder Bounding Corners */}
-          <div className="absolute inset-6 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+          {/* Champagne Gold Viewfinder Corner Brackets */}
+          <div className="absolute inset-5 border border-dashed border-white/20 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
             <div className="flex justify-between">
-              <div className="w-5 h-5 border-t-3 border-l-3 border-emerald-400 rounded-tl" />
-              <div className="w-5 h-5 border-t-3 border-r-3 border-emerald-400 rounded-tr" />
+              <div className="w-6 h-6 border-t-2 border-l-2 border-[#B5935A] rounded-tl" />
+              <div className="w-6 h-6 border-t-2 border-r-2 border-[#B5935A] rounded-tr" />
             </div>
             <div className="flex justify-between">
-              <div className="w-5 h-5 border-b-3 border-l-3 border-emerald-400 rounded-bl" />
-              <div className="w-5 h-5 border-b-3 border-r-3 border-emerald-400 rounded-br" />
+              <div className="w-6 h-6 border-b-2 border-l-2 border-[#B5935A] rounded-bl" />
+              <div className="w-6 h-6 border-b-2 border-r-2 border-[#B5935A] rounded-br" />
             </div>
           </div>
 
           {!cameraActive && (
-            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-4 text-center">
-              <Camera className="w-8 h-8 text-slate-400 mb-2" />
-              <p className="text-xs text-white font-medium">Starting Camera...</p>
-              <p className="text-[10px] text-slate-400 mt-1">Please allow camera permissions</p>
+            <div className="absolute inset-0 bg-[#171715]/90 flex flex-col items-center justify-center p-4 text-center">
+              <Camera className="w-8 h-8 text-[#9A9386] mb-2" />
+              <p className="text-xs text-[#FAF8F3] font-serif font-semibold">Initializing Optical Sensor...</p>
+              <p className="text-[10px] text-[#9A9386] mt-1 font-mono">Please grant camera permissions</p>
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-slate-500 max-w-xs mx-auto">
-          Hold your phone steady and point camera at the QR code on the ATM kiosk display.
+        <p className="text-center text-xs text-[#666156] max-w-xs mx-auto font-sans">
+          Hold steady and center the cryptographic QR code displayed on the concierge terminal.
         </p>
 
         {/* 1-Tap Link to Active ATM Screen */}
         <div className="mt-4">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             type="button"
             onClick={handlePairWithActiveATM}
             disabled={loading}
-            className="w-full py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#102A22] to-[#193D32] hover:from-[#193D32] hover:to-[#225042] text-[#FAF8F3] font-sans font-medium text-xs uppercase tracking-wider shadow-warm-xs transition flex items-center justify-center gap-2 disabled:opacity-50 border border-[#255243]/50"
           >
             {loading ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Linking Active ATM Screen...</span>
+                <RefreshCw className="w-4 h-4 animate-spin text-[#B5935A]" />
+                <span>Linking Active Terminal...</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 text-amber-300" />
-                <span>Pair with Active ATM Screen</span>
+                <Zap className="w-4 h-4 text-[#B5935A] fill-[#B5935A]" />
+                <span>Pair with Active Terminal</span>
               </>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* Manual Code Input Option */}
-      <div className="pt-3 border-t border-slate-200">
-        <p className="text-[11px] text-slate-500 font-medium mb-1.5 text-center">
-          Or Enter Session UUID Code:
+      <div className="pt-3 border-t border-[#E6E0D4]">
+        <p className="text-[10px] text-[#9A9386] font-mono tracking-wider uppercase mb-1.5 text-center">
+          Or Enter Session Code:
         </p>
         <form
           onSubmit={(e) => {
@@ -283,17 +301,18 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
             placeholder="e.g. 8e98444c..."
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+            className="flex-1 px-3 py-2 rounded-xl bg-[#FCFBF8] border border-[#E6E0D4] text-xs text-[#171715] focus:outline-none focus:ring-1 focus:ring-[#B5935A] focus:border-[#B5935A] font-mono shadow-warm-xs"
           />
           <button
             type="submit"
             disabled={!manualCode.trim() || loading}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] text-xs font-sans font-medium disabled:opacity-50 transition shadow-warm-xs"
           >
-            Link
+            Pair
           </button>
         </form>
       </div>
     </div>
   );
 };
+export default QRScannerScreen;

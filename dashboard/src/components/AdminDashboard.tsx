@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ShieldAlert,
   Key,
   Users,
   Activity,
@@ -10,18 +9,24 @@ import {
   Eye,
   Flag,
   Wifi,
-  Sparkles,
   Zap,
-  Lock,
-  Building2,
-  UserCheck,
+  Unlock,
+  Radio,
+  Volume2,
+  VolumeX,
+  XOctagon,
+  Flame,
 } from 'lucide-react';
-import { Transaction, User, RotatorStatus } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Transaction, User, RotatorStatus, ActiveSession, DuressAlert } from '../types';
 
 export const AdminDashboard: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [rotatorStatus, setRotatorStatus] = useState<RotatorStatus | null>(null);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [duressAlerts, setDuressAlerts] = useState<DuressAlert[]>([]);
+  const [audioMuted, setAudioMuted] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [onlyAnomalies, setOnlyAnomalies] = useState<boolean>(false);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
@@ -33,20 +38,48 @@ export const AdminDashboard: React.FC = () => {
   const [keyUpdateMsg, setKeyUpdateMsg] = useState<string | null>(null);
 
   // Selected photo preview
-  const [viewingPhoto, setViewingPhoto] = useState<{ name: string; url: string } | null>(null);
+  const [, setViewingPhoto] = useState<{ name: string; url: string } | null>(null);
+
+  // Play synthetic Web Audio warning tone for Duress emergencies
+  const playEmergencyTone = useCallback(() => {
+    if (audioMuted) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
+
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.38);
+    } catch {
+      // Audio context might be restricted before user interaction
+    }
+  }, [audioMuted]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [txRes, usersRes, rotRes] = await Promise.all([
+      const [txRes, usersRes, rotRes, sessRes] = await Promise.all([
         fetch(`http://localhost:8000/api/transactions?limit=100${onlyAnomalies ? '&only_anomalies=true' : ''}`),
         fetch('http://localhost:8000/api/users'),
         fetch('http://localhost:8000/api/gemini/status'),
+        fetch('http://localhost:8000/api/admin/sessions/active'),
       ]);
 
       if (txRes.ok) setTransactions(await txRes.json());
       if (usersRes.ok) setUsers(await usersRes.json());
       if (rotRes.ok) setRotatorStatus(await rotRes.json());
+      if (sessRes.ok) setActiveSessions(await sessRes.json());
     } catch (e) {
       console.error('Error fetching admin data:', e);
     } finally {
@@ -67,7 +100,40 @@ export const AdminDashboard: React.FC = () => {
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type === 'KIOSK_SESSION_UPDATE' || payload.type === 'ANOMALY_UPDATED') {
+
+          if (payload.type === 'ACTIVE_SESSIONS_INIT' && Array.isArray(payload.sessions)) {
+            setActiveSessions(payload.sessions);
+          } else if (payload.type === 'ACTIVE_SESSION_UPDATED' && payload.session) {
+            setActiveSessions((prev) => {
+              const idx = prev.findIndex((s) => s.session_id === payload.session.session_id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = payload.session;
+                return next;
+              }
+              return [payload.session, ...prev];
+            });
+          } else if (payload.type === 'ACTIVE_SESSION_REMOVED') {
+            setActiveSessions((prev) => prev.filter((s) => s.session_id !== payload.session_id));
+          } else if (payload.type === 'DURESS_ALERT') {
+            playEmergencyTone();
+            const alertItem: DuressAlert = {
+              kiosk_id: payload.kiosk_id,
+              user_id: payload.user_id,
+              user_name: payload.user_name,
+              decoy_amount: payload.decoy_amount,
+              timestamp: payload.timestamp || new Date().toISOString(),
+              session_id: payload.session_id,
+            };
+            setDuressAlerts((prev) => [alertItem, ...prev]);
+            fetchData();
+          } else if (
+            payload.type === 'KIOSK_SESSION_UPDATE' ||
+            payload.type === 'ANOMALY_UPDATED' ||
+            payload.type === 'USER_UNFROZEN' ||
+            payload.type === 'BALANCE_UPDATED' ||
+            payload.type === 'TRANSACTION_COMPLETE'
+          ) {
             fetchData();
           }
         } catch (err) {
@@ -83,7 +149,39 @@ export const AdminDashboard: React.FC = () => {
     return () => {
       if (ws) ws.close();
     };
-  }, []);
+  }, [playEmergencyTone]);
+
+  const handleTerminateSession = async (sessionId: string) => {
+    if (!confirm(`Are you sure you want to terminate ATM Session ${sessionId.slice(0, 8)}...? The terminal will immediately lock out.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`http://localhost:8000/api/admin/sessions/${sessionId}/terminate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Terminated immediately by Security Operations Admin' }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (e) {
+      console.error('Error terminating session:', e);
+    }
+  };
+
+  const handleUnfreezeUser = async (userId: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/admin/users/${userId}/unfreeze`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setDuressAlerts((prev) => prev.filter((a) => a.user_id !== userId));
+        fetchData();
+      }
+    } catch (e) {
+      console.error('Error unfreezing user:', e);
+    }
+  };
 
   const handleToggleFlag = async (txId: string, currentFlag: boolean) => {
     try {
@@ -92,7 +190,7 @@ export const AdminDashboard: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           anomaly_flag: !currentFlag,
-          anomaly_reason: !currentFlag ? 'Manually flagged for fraud audit by Administrator' : null,
+          anomaly_reason: !currentFlag ? 'Manually flagged for audit by Administrator' : null,
         }),
       });
       if (res.ok) {
@@ -118,7 +216,7 @@ export const AdminDashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setRotatorStatus(data.status);
-        setKeyUpdateMsg('Keys updated successfully into Rotator engine.');
+        setKeyUpdateMsg('Cryptographic key slots updated successfully.');
         setKey1('');
         setKey2('');
         setKey3('');
@@ -135,120 +233,318 @@ export const AdminDashboard: React.FC = () => {
       const data = await res.json();
       if (data.reference_selfie) {
         setViewingPhoto({ name: u.full_name, url: data.reference_selfie });
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(`<html><body style="background:#102A22;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><img src="${data.reference_selfie}" style="max-width:90%;max-height:90%;border-radius:16px;border:3px solid #B5935A;" /></body></html>`);
+        }
       } else {
-        alert('No reference selfie registered for this user.');
+        alert('No reference selfie registered for this client.');
       }
     } catch (e) {
       console.error(e);
     }
   };
 
+  // Helper: Render Circular SVG Risk Score Gauge
+  const renderRiskGauge = (score: number) => {
+    const radius = 22;
+    const circumference = 2 * Math.PI * radius;
+    const progress = Math.min(100, Math.max(0, score)) / 100;
+    const offset = circumference - progress * circumference;
+
+    let color = '#155E43'; // Emerald (0-39)
+    if (score >= 70) color = '#9F1239'; // Bordeaux (70-100)
+    else if (score >= 40) color = '#9A6700'; // Ochre (40-69)
+
+    return (
+      <div className="relative w-16 h-16 flex items-center justify-center shrink-0">
+        <svg className="w-16 h-16 transform -rotate-90">
+          <circle
+            cx="32"
+            cy="32"
+            r={radius}
+            stroke="#E6E0D4"
+            strokeWidth="3.5"
+            fill="transparent"
+          />
+          <circle
+            cx="32"
+            cy="32"
+            r={radius}
+            stroke={color}
+            strokeWidth="3.5"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+            fill="transparent"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
+          <span className="text-xs font-bold text-[#171715] tracking-tight tabular-nums">{score}</span>
+          <span className="text-[8px] text-[#9A9386] uppercase tracking-tight">RISK</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Top Telemetry Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-7 text-[#171715] font-sans">
+      {/* ================= DURESS EMERGENCY BANNER ================= */}
+      <AnimatePresence>
+        {duressAlerts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -15, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -15, scale: 0.98 }}
+            className="p-5 rounded-2xl bg-[#FDF2F4] border-2 border-[#9F1239] shadow-md relative overflow-hidden"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-xl bg-[#9F1239] flex items-center justify-center text-[#FAF8F3] shadow-sm shrink-0">
+                  <Flame className="w-6 h-6 stroke-[2]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#9F1239]/15 text-[#9F1239] border border-[#9F1239]/30 text-[10px] font-mono font-bold uppercase tracking-wider">
+                      CRITICAL DURESS ALERT
+                    </span>
+                    <span className="text-xs text-[#9F1239] font-mono">
+                      {new Date(duressAlerts[0].timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-serif font-bold text-[#9F1239] mt-0.5">
+                    Silent Duress Panic Protocol Activated!
+                  </h3>
+                  <p className="text-xs text-[#9F1239]/90 font-mono mt-0.5">
+                    Terminal: <strong className="text-[#171715]">{duressAlerts[0].kiosk_id}</strong> • Client: <strong className="text-[#171715]">{duressAlerts[0].user_name}</strong> • Decoy Dispensed: <strong className="text-[#171715]">₹{duressAlerts[0].decoy_amount.toLocaleString('en-IN')}</strong>. Account balance has been locked from further disbursements.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => setAudioMuted(!audioMuted)}
+                  className="p-2 rounded-xl bg-white border border-[#F8CBD4] text-[#9F1239] hover:bg-[#FDF2F4] transition text-xs"
+                  title={audioMuted ? "Unmute Alarm" : "Mute Alarm"}
+                >
+                  {audioMuted ? <VolumeX className="w-4 h-4 text-[#9A9386]" /> : <Volume2 className="w-4 h-4 text-[#9F1239]" />}
+                </button>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => handleUnfreezeUser(duressAlerts[0].user_id)}
+                  className="px-4 py-2.5 rounded-xl bg-[#9F1239] hover:bg-[#881337] text-white font-medium text-xs tracking-wider uppercase shadow-sm transition flex items-center gap-2"
+                >
+                  <Unlock className="w-4 h-4 text-white" />
+                  <span>Acknowledge & Lift Hold</span>
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Top Operations Header */}
+      <div className="luxury-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-slate-900">
-              Security Operations Center
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-3xl font-serif font-semibold text-[#171715] tracking-tight">
+              Institutional Security Operations
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-mono font-semibold flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-blue-600" /> ADMIN PORTAL
+            <span className="px-3 py-1 rounded-full bg-[#F4EFE4] text-[#B5935A] border border-[#E2D4BC] text-xs font-mono font-semibold flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-[#B5935A]" /> AUDIT PORTAL
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Real-time biometric fraud mitigation, live audit trails, and multi-key Gemini API rotator telemetry.
+          <p className="text-xs text-[#666156] mt-1 font-sans">
+            Real-time biometric threat surveillance, live risk engine scoring, 1-click terminal kill switch, and multi-slot cryptographic key gateway telemetry.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono">
-            <Wifi className={`w-3.5 h-3.5 ${wsConnected ? 'text-emerald-600' : 'text-amber-500'}`} />
-            <span className={wsConnected ? 'text-emerald-700 font-semibold' : 'text-amber-600'}>
-              {wsConnected ? 'WEBSOCKET ACTIVE' : 'RECONNECTING...'}
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-xs font-mono">
+            <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[#155E43]' : 'bg-[#9A6700]'}`} />
+            <Wifi className={`w-3.5 h-3.5 ${wsConnected ? 'text-[#155E43]' : 'text-[#9A6700]'}`} />
+            <span className={wsConnected ? 'text-[#155E43] font-semibold' : 'text-[#9A6700] font-semibold'}>
+              {wsConnected ? 'LIVE FEED ACTIVE' : 'RECONNECTING'}
             </span>
           </div>
-          <button
+
+          <motion.button
+            whileTap={{ scale: 0.94 }}
             onClick={fetchData}
-            className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
+            className="p-2.5 rounded-xl border border-[#E6E0D4] bg-[#FCFBF8] text-[#666156] hover:text-[#171715] hover:bg-[#F5F2EB] shadow-sm transition"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </motion.button>
         </div>
       </div>
 
-      {/* ================= GEMINI 3-KEY ROTATOR MONITOR ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      {/* ================= LIVE ACTIVE SESSIONS & THREAT MONITOR ================= */}
+      <div className="luxury-card rounded-2xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xl font-serif font-semibold text-[#171715] flex items-center gap-2">
+                <span>Active Concierge Terminals & Live Risk Scoring</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#EBF5F0] text-[#155E43] border border-[#C2E2D3] font-bold">
+                  {activeSessions.length} TERMINAL{activeSessions.length === 1 ? '' : 'S'}
+                </span>
+              </h3>
+              <p className="text-xs text-[#666156]">Live terminal session telemetry, AI threat score calculation, and administrative override kill switch.</p>
+            </div>
+          </div>
+        </div>
+
+        {activeSessions.length === 0 ? (
+          <div className="py-10 text-center rounded-xl bg-[#F5F2EB]/50 border border-dashed border-[#E6E0D4]">
+            <Radio className="w-8 h-8 text-[#9A9386] mx-auto mb-2 opacity-60" />
+            <p className="text-base font-serif font-medium text-[#171715]">No Active Terminal Sessions</p>
+            <p className="text-xs text-[#666156] mt-1">When a client initiates a cardless withdrawal at a concierge terminal, live risk telemetry will appear here.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeSessions.map((s) => (
+              <motion.div
+                key={s.session_id}
+                initial={{ opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-5 rounded-xl bg-[#FCFBF8] border border-[#E6E0D4] shadow-sm flex flex-col justify-between space-y-4"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase font-bold text-[#B5935A] tracking-wider">
+                        TERMINAL #{s.kiosk_id}
+                      </span>
+                      <h4 className="text-base font-serif font-semibold text-[#171715] mt-0.5">
+                        {s.user_name || 'Guest Device Pairing...'}
+                      </h4>
+                      <p className="text-[11px] text-[#666156] font-mono mt-0.5">
+                        Step: <strong className="text-[#171715]">{s.step}</strong>
+                      </p>
+                    </div>
+
+                    {renderRiskGauge(s.risk_score || 0)}
+                  </div>
+
+                  {s.prestaged_amount && (
+                    <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FDF6E7] border border-[#F5DEB3] text-[#9A6700] text-[10px] font-mono">
+                      <Zap className="w-3 h-3 text-[#9A6700]" />
+                      <span>Express Staged: ₹{s.prestaged_amount.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+
+                  {(s.shoulder_surfing_detected || s.disguise_detected) && (
+                    <div className="mt-2.5 p-2 rounded-xl bg-[#FDF2F4] border border-[#F8CBD4] text-[#9F1239] text-[11px] flex items-center gap-1.5 font-sans">
+                      <AlertTriangle className="w-3.5 h-3.5 text-[#9F1239] shrink-0" />
+                      <span>{s.threat_reason || "Surveillance Threat Active"}</span>
+                    </div>
+                  )}
+
+                  {s.risk_factors && s.risk_factors.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {s.risk_factors.map((f, i) => (
+                        <span key={i} className="text-[9px] font-mono px-2 py-0.5 rounded bg-[#F5F2EB] text-[#666156] border border-[#E6E0D4]">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-[#E6E0D4] flex items-center justify-between">
+                  <span className="text-[10px] text-[#9A9386] font-mono">
+                    Token: {s.session_id.slice(0, 8)}...
+                  </span>
+                  <motion.button
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => handleTerminateSession(s.session_id)}
+                    className="px-3 py-1.5 rounded-xl bg-[#FDF2F4] hover:bg-[#FCE7EB] border border-[#F8CBD4] text-[#9F1239] font-medium text-[11px] flex items-center gap-1.5 transition"
+                  >
+                    <XOctagon className="w-3.5 h-3.5 text-[#9F1239]" />
+                    <span>Terminate Session</span>
+                  </motion.button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ================= CRYPTOGRAPHIC KEY GATEWAY TELEMETRY ================= */}
+      <div className="luxury-card rounded-2xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
               <Key className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Gemini API Key Rotator & Failover Engine
+              <h3 className="text-xl font-serif font-semibold text-[#171715]">
+                Sentinel Cryptographic Key Gateway & Failover Telemetry
               </h3>
-              <p className="text-xs text-slate-500">Autonomous failover through key pool with rate-limit protection.</p>
+              <p className="text-xs text-[#666156]">Autonomous round-robin failover with rate-limit cooldown management.</p>
             </div>
           </div>
-          <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto">
-            Active Slot: <strong className="text-blue-700">KEY_{(rotatorStatus?.current_index ?? 0) + 1}</strong>
+          <span className="text-xs font-mono px-3.5 py-1.5 rounded-full bg-[#F4EFE4] text-[#B5935A] border border-[#E2D4BC] self-start sm:self-auto font-medium">
+            Active Slot: <strong className="text-[#102A22]">KEY_{(rotatorStatus?.current_index ?? 0) + 1}</strong>
           </span>
         </div>
 
-        {/* 3 Key Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {rotatorStatus?.slots.map((slot, idx) => {
             const isCurrentlySelected = rotatorStatus.current_index === idx;
             return (
               <div
                 key={slot.key_id}
-                className={`p-4 rounded-xl border transition relative ${
+                className={`p-5 rounded-xl border transition-all relative ${
                   slot.is_cooling_down
-                    ? 'bg-rose-50 border-rose-200 text-rose-900'
+                    ? 'bg-[#FDF2F4] border-[#F8CBD4] text-[#9F1239]'
                     : isCurrentlySelected
-                    ? 'bg-blue-50/70 border-blue-300 text-blue-950 shadow-sm'
-                    : 'bg-slate-50 border-slate-200 text-slate-800'
+                    ? 'bg-[#FCFBF8] border-[#B5935A] shadow-sm ring-1 ring-[#B5935A]/30'
+                    : 'bg-[#F5F2EB]/50 border-[#E6E0D4] text-[#666156]'
                 }`}
               >
                 {isCurrentlySelected && (
-                  <span className="absolute top-2.5 right-2.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-700 text-white">
+                  <span className="absolute top-3 right-3 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#102A22] text-[#FAF8F3]">
                     ACTIVE ROUTE
                   </span>
                 )}
 
                 <div className="flex items-center gap-2 mb-2">
-                  <Key className={`w-4 h-4 ${isCurrentlySelected ? 'text-blue-700' : 'text-slate-500'}`} />
-                  <span className="text-sm font-bold font-mono text-slate-900">{slot.key_id}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">({slot.masked_key})</span>
+                  <Key className={`w-4 h-4 ${isCurrentlySelected ? 'text-[#B5935A]' : 'text-[#9A9386]'}`} />
+                  <span className="text-sm font-bold font-mono text-[#171715]">{slot.key_id}</span>
+                  <span className="text-[10px] text-[#9A9386] font-mono">({slot.masked_key})</span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/80 text-center font-mono text-xs">
+                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#E6E0D4] text-center font-mono text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Calls</span>
-                    <p className="text-sm font-bold text-slate-900">{slot.total_requests}</p>
+                    <span className="text-[9px] text-[#9A9386] uppercase block">Calls</span>
+                    <p className="text-sm font-bold text-[#171715] mt-0.5 tabular-nums">{slot.total_requests}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Success</span>
-                    <p className="text-sm font-bold text-emerald-600">{slot.success_count}</p>
+                    <span className="text-[9px] text-[#9A9386] uppercase block">Success</span>
+                    <p className="text-sm font-bold text-[#155E43] mt-0.5 tabular-nums">{slot.success_count}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">429 Hits</span>
-                    <p className={`text-sm font-bold ${slot.rate_limit_count > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                    <span className="text-[9px] text-[#9A9386] uppercase block">Rate Hits</span>
+                    <p className={`text-sm font-bold mt-0.5 tabular-nums ${slot.rate_limit_count > 0 ? 'text-[#9F1239]' : 'text-[#666156]'}`}>
                       {slot.rate_limit_count}
                     </p>
                   </div>
                 </div>
 
                 {slot.is_cooling_down ? (
-                  <div className="mt-3 p-1.5 rounded-lg bg-rose-100 text-rose-800 text-[11px] font-mono flex items-center justify-between">
+                  <div className="mt-4 p-2 rounded-lg bg-[#FCE7EB] text-[#9F1239] text-[11px] font-mono flex items-center justify-between border border-[#F8CBD4]">
                     <span>COOLDOWN ACTIVE</span>
                     <span>{slot.remaining_cooldown_seconds}s</span>
                   </div>
                 ) : (
-                  <div className="mt-3 text-[11px] font-medium text-emerald-700 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Ready for routing
+                  <div className="mt-4 text-[11px] font-medium text-[#155E43] flex items-center gap-1.5 font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#155E43]" /> Ready for routing
                   </div>
                 )}
               </div>
@@ -256,218 +552,241 @@ export const AdminDashboard: React.FC = () => {
           })}
         </div>
 
-        {/* Update Keys Form */}
-        <form onSubmit={handleUpdateKeys} className="mt-5 pt-5 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-700 mb-2">Configure / Update Gemini API Keys</p>
+        <form onSubmit={handleUpdateKeys} className="mt-6 pt-5 border-t border-[#E6E0D4]">
+          <p className="text-xs font-semibold text-[#171715] mb-2.5 font-serif">Configure / Update Cryptographic Keys</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
               type="password"
-              placeholder="Gemini Key 1"
+              placeholder="API Key Slot 1"
               value={key1}
               onChange={(e) => setKey1(e.target.value)}
-              className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+              className="px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-xs text-[#171715] focus:outline-none focus:border-[#B5935A] font-mono"
             />
             <input
               type="password"
-              placeholder="Gemini Key 2"
+              placeholder="API Key Slot 2"
               value={key2}
               onChange={(e) => setKey2(e.target.value)}
-              className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+              className="px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-xs text-[#171715] focus:outline-none focus:border-[#B5935A] font-mono"
             />
             <input
               type="password"
-              placeholder="Gemini Key 3"
+              placeholder="API Key Slot 3"
               value={key3}
               onChange={(e) => setKey3(e.target.value)}
-              className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+              className="px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-xs text-[#171715] focus:outline-none focus:border-[#B5935A] font-mono"
             />
           </div>
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3.5 flex items-center justify-between">
             {keyUpdateMsg ? (
-              <span className="text-xs text-emerald-700 font-medium">{keyUpdateMsg}</span>
+              <span className="text-xs text-[#155E43] font-medium font-mono">{keyUpdateMsg}</span>
             ) : (
-              <span className="text-[11px] text-slate-500">Keys are kept secured in backend memory and cycled automatically.</span>
+              <span className="text-[11px] text-[#9A9386]">Keys are encrypted in memory and rotated dynamically.</span>
             )}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               type="submit"
-              className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs transition"
+              className="px-5 py-2 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition shadow-sm"
             >
-              Update Keys
-            </button>
+              Update Key Slots
+            </motion.button>
           </div>
         </form>
       </div>
 
       {/* ================= REAL-TIME TRANSACTIONS FEED ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      <div className="luxury-card rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
               <Activity className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Live Kiosk Transaction Audit Trail</h3>
-              <p className="text-xs text-slate-500">All ATM withdrawals with real-time biometric risk evaluation.</p>
+              <h3 className="text-xl font-serif font-semibold text-[#171715]">Institutional Transaction Audit Trail</h3>
+              <p className="text-xs text-[#666156]">Secure ledger records with real-time threat scores & anomaly flags.</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setOnlyAnomalies(!onlyAnomalies)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition border ${
                 onlyAnomalies
-                  ? 'bg-rose-50 text-rose-700 border-rose-300'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-[#FDF2F4] text-[#9F1239] border-[#F8CBD4]'
+                  : 'bg-[#FCFBF8] text-[#666156] border-[#E6E0D4] hover:bg-[#F5F2EB]'
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>{onlyAnomalies ? 'Showing Flagged Only' : 'Show All'}</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-[#9F1239]" />
+              <span>{onlyAnomalies ? 'Flagged / Duress Only' : 'Show All Audit Ledger'}</span>
             </button>
           </div>
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-y border-slate-200">
+          <table className="w-full text-left text-xs font-sans">
+            <thead className="bg-[#F5F2EB] text-[#666156] uppercase font-mono tracking-wider border-y border-[#E6E0D4]">
               <tr>
                 <th className="px-4 py-3">Timestamp</th>
                 <th className="px-4 py-3">Terminal</th>
-                <th className="px-4 py-3">User ID</th>
+                <th className="px-4 py-3">Client Ref</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3">Threat Score</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Fraud Anomaly</th>
+                <th className="px-4 py-3">Audit Review</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-mono">
+            <tbody className="divide-y divide-[#E6E0D4]/70 font-mono">
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500 font-sans">
-                    No transactions recorded in ledger.
+                  <td colSpan={9} className="px-4 py-8 text-center text-[#9A9386] font-sans">
+                    No transactions recorded in institutional audit ledger.
                   </td>
                 </tr>
               ) : (
-                transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {new Date(tx.created_at).toLocaleTimeString()}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
-                      {tx.kiosk_id}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {tx.user_id.slice(0, 8)}...
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 font-sans">{tx.transaction_type}</td>
-                    <td className="px-4 py-3 font-bold text-emerald-600 text-sm">
-                      ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-sans font-semibold">
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {tx.anomaly_flag ? (
-                        <div className="flex items-center gap-1.5 text-rose-600" title={tx.anomaly_reason || ''}>
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          <span className="text-[11px] truncate max-w-[180px] font-sans font-medium">{tx.anomaly_reason || 'Flagged'}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-[11px] font-sans">Normal</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleToggleFlag(tx.id, tx.anomaly_flag)}
-                        className={`p-1.5 rounded-lg border transition ${
-                          tx.anomaly_flag
-                            ? 'bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-200'
-                            : 'bg-white border-slate-200 text-slate-500 hover:text-slate-800'
-                        }`}
-                        title={tx.anomaly_flag ? 'Clear Anomaly Flag' : 'Flag as Anomaly'}
-                      >
-                        <Flag className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                transactions.map((tx) => {
+                  const score = tx.risk_score ?? 0;
+                  const isHighRisk = score >= 70 || tx.is_duress;
+                  const isMedRisk = score >= 40 && score < 70;
+
+                  return (
+                    <tr key={tx.id} className="hover:bg-[#F5F2EB]/50 transition">
+                      <td className="px-4 py-3.5 text-[#666156] whitespace-nowrap">
+                        {new Date(tx.created_at).toLocaleTimeString()}
+                      </td>
+                      <td className="px-4 py-3.5 font-semibold text-[#171715] whitespace-nowrap font-mono">
+                        {tx.kiosk_id}
+                      </td>
+                      <td className="px-4 py-3.5 text-[#666156] whitespace-nowrap">
+                        {tx.user_id.slice(0, 8)}...
+                      </td>
+                      <td className="px-4 py-3.5 text-[#666156] font-sans">{tx.transaction_type}</td>
+                      <td className="px-4 py-3.5 font-bold text-[#102A22] text-sm whitespace-nowrap tabular-nums">
+                        ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold tabular-nums ${
+                          isHighRisk
+                            ? 'bg-[#FDF2F4] text-[#9F1239] border border-[#F8CBD4]'
+                            : isMedRisk
+                            ? 'bg-[#FDF6E7] text-[#9A6700] border border-[#F5DEB3]'
+                            : 'bg-[#EBF5F0] text-[#155E43] border border-[#C2E2D3]'
+                        }`}>
+                          {score} / 100
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#EBF5F0] text-[#155E43] border border-[#C2E2D3] text-[10px] font-sans font-semibold">
+                          {tx.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {tx.is_duress ? (
+                          <span className="px-2 py-0.5 rounded-full bg-[#FCE7EB] text-[#9F1239] border border-[#F8CBD4] text-[10px] font-bold font-mono flex items-center gap-1 w-fit">
+                            <Flame className="w-3 h-3 text-[#9F1239]" /> DURESS PROTOCOL
+                          </span>
+                        ) : tx.anomaly_flag ? (
+                          <div className="flex items-center gap-1.5 text-[#9F1239] font-sans" title={tx.anomaly_reason || ''}>
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#9F1239]" />
+                            <span className="text-[11px] truncate max-w-[160px]">{tx.anomaly_reason || 'Flagged'}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[#9A9386] text-[11px] font-sans">Normal</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          onClick={() => handleToggleFlag(tx.id, tx.anomaly_flag)}
+                          className={`p-1.5 rounded-lg border transition ${
+                            tx.anomaly_flag
+                              ? 'bg-[#FDF2F4] border-[#F8CBD4] text-[#9F1239]'
+                              : 'bg-white border-[#E6E0D4] text-[#9A9386] hover:text-[#171715]'
+                          }`}
+                          title={tx.anomaly_flag ? 'Clear Anomaly Flag' : 'Flag for Audit'}
+                        >
+                          <Flag className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ================= REGISTERED USERS DIRECTORY ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      {/* ================= REGISTERED CLIENTS DIRECTORY ================= */}
+      <div className="luxury-card rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+          <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">Registered Accounts & Biometrics Directory</h3>
-            <p className="text-xs text-slate-500">Live records in MongoDB Atlas database (no dummy records).</p>
+            <h3 className="text-xl font-serif font-semibold text-[#171715]">Private Client Accounts Directory</h3>
+            <p className="text-xs text-[#666156]">Enrolled client profiles with biometric identity baselines and security hold controls.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {users.map((u) => (
-            <div key={u.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+            <div key={u.id} className="p-5 rounded-xl border border-[#E6E0D4] bg-[#FCFBF8] shadow-sm flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+                    u.role === 'admin' ? 'bg-[#F4EFE4] text-[#B5935A] border border-[#E2D4BC]' : 'bg-[#EBF5F0] text-[#155E43] border border-[#C2E2D3]'
                   }`}>
                     {u.role}
                   </span>
-                  <span className={`w-2.5 h-2.5 rounded-full ${u.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                  <div className="flex items-center gap-2">
+                    {u.account_frozen_duress ? (
+                      <span className="px-2 py-0.5 rounded-full bg-[#FDF2F4] text-[#9F1239] border border-[#F8CBD4] text-[9px] font-mono font-bold">
+                        HOLD ACTIVE
+                      </span>
+                    ) : null}
+                    <span className={`w-2 h-2 rounded-full ${u.is_active ? 'bg-[#155E43]' : 'bg-[#9F1239]'}`} />
+                  </div>
                 </div>
-                <h4 className="text-sm font-bold text-slate-900">{u.full_name}</h4>
-                <p className="text-xs text-slate-500 font-mono">@{u.username} • {u.phone}</p>
+
+                <h4 className="text-base font-serif font-semibold text-[#171715]">{u.full_name}</h4>
+                <p className="text-xs text-[#666156] font-mono mt-0.5">@{u.username} • {u.phone}</p>
                 
-                <div className="mt-3 flex items-baseline justify-between font-mono pt-2 border-t border-slate-200/60">
-                  <span className="text-xs text-slate-500 font-sans">Balance:</span>
-                  <span className="text-sm font-bold text-emerald-600">₹{u.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <div className="mt-3.5 flex items-baseline justify-between font-mono pt-2.5 border-t border-[#E6E0D4]">
+                  <span className="text-xs text-[#666156] font-sans">Reserve Balance:</span>
+                  <span className="text-sm font-bold text-[#102A22] tabular-nums">
+                    ₹{u.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-medium">
+              <div className="mt-4 pt-3 border-t border-[#E6E0D4] flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[#9A9386] font-mono">
                   {u.has_reference_selfie ? 'Baseline: Enrolled' : 'No Photo'}
                 </span>
-                <button
-                  onClick={() => handleViewUserPhoto(u)}
-                  className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs text-slate-700 flex items-center gap-1.5 transition"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Inspect Face</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {u.account_frozen_duress && (
+                    <button
+                      onClick={() => handleUnfreezeUser(u.id)}
+                      className="px-2.5 py-1 rounded-lg bg-[#FDF2F4] hover:bg-[#FCE7EB] border border-[#F8CBD4] text-[11px] font-semibold text-[#9F1239] transition"
+                    >
+                      Lift Hold
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleViewUserPhoto(u)}
+                    className="px-3 py-1.5 rounded-lg border border-[#E6E0D4] bg-[#F5F2EB] hover:bg-[#EBE6DB] text-xs text-[#171715] flex items-center gap-1.5 transition"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#B5935A]" />
+                    <span>Inspect</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Face Photo Modal */}
-      {viewingPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl text-center">
-            <h4 className="text-base font-bold text-slate-900 mb-1">{viewingPhoto.name}</h4>
-            <p className="text-xs text-slate-500 mb-4">Registered Gemini Biometric Reference</p>
-            <div className="w-48 h-48 rounded-xl overflow-hidden mx-auto border border-slate-200 shadow-inner">
-              <img src={viewingPhoto.url} alt={viewingPhoto.name} className="w-full h-full object-cover" />
-            </div>
-            <button
-              onClick={() => setViewingPhoto(null)}
-              className="mt-6 px-6 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

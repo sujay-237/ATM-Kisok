@@ -16,11 +16,14 @@ export interface MobileUser {
   role: string;
   account_balance: number;
   has_reference_selfie: boolean;
+  duress_pin?: string;
+  account_frozen_duress?: boolean;
 }
 
 export interface ScannedSession {
   sessionId: string;
   kioskId: string;
+  prestaged_amount?: number | null;
 }
 
 export interface VerificationResult {
@@ -32,6 +35,11 @@ export interface VerificationResult {
   engine: string;
   failover_occurred: boolean;
   status: string;
+  shoulder_surfing_detected?: boolean;
+  disguise_detected?: boolean;
+  threat_reason?: string;
+  is_duress?: boolean;
+  prestaged_amount?: number | null;
 }
 
 export interface DelegationItem {
@@ -40,4 +48,5 @@ export interface DelegationItem {
   max_withdrawal_limit: number;
   remaining_limit: number;
   expires_at: string;
+  is_active?: boolean;
 }

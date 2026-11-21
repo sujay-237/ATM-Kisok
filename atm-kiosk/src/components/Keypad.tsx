@@ -1,5 +1,6 @@
 import React from 'react';
 import { Delete, CornerDownLeft, X } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { sounds } from '../utils/sound';
 
 interface KeypadProps {
@@ -24,65 +25,75 @@ export const Keypad: React.FC<KeypadProps> = ({
   };
 
   return (
-    <div className="p-5 rounded-2xl bg-slate-100 border border-slate-300 shadow-inner max-w-xs mx-auto">
+    <div className="p-6 rounded-2xl bg-[#FCFBF8] border border-[#E6E0D4] max-w-xs mx-auto shadow-warm-sm">
       <div className="grid grid-cols-3 gap-2.5">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((key) => (
-          <button
+          <motion.button
             key={key}
             type="button"
+            whileTap={{ scale: 0.96 }}
+            whileHover={{ y: -1 }}
             disabled={disabled}
             onClick={() => handleKeyClick(() => onDigit(key))}
-            className="atm-keypad-btn h-14 rounded-xl text-xl font-bold font-mono flex items-center justify-center transition"
+            className="h-12 rounded-xl text-lg font-semibold font-mono flex items-center justify-center transition disabled:opacity-40 bg-[#FCFBF8] hover:bg-white border border-[#E6E0D4] text-[#171715] hover:border-[#B5935A] shadow-warm-xs"
           >
             {key}
-          </button>
+          </motion.button>
         ))}
 
         {/* Clear Button */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.96 }}
+          whileHover={{ y: -1 }}
           disabled={disabled}
           onClick={() => handleKeyClick(onClear)}
-          className="atm-keypad-btn h-14 rounded-xl text-xs font-bold uppercase text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300 flex flex-col items-center justify-center transition"
+          className="h-12 rounded-xl text-[11px] font-mono tracking-wider font-semibold uppercase text-[#9A6700] border border-[#F0DFB8] bg-[#FDF6E7] hover:bg-[#FBEFD5] flex flex-col items-center justify-center transition disabled:opacity-40 shadow-warm-xs"
           title="Clear"
         >
-          <X className="w-4 h-4 mb-0.5" />
-          <span>Clear</span>
-        </button>
+          <X className="w-3.5 h-3.5 mb-0.5" />
+          <span>CLR</span>
+        </motion.button>
 
         {/* Zero */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.96 }}
+          whileHover={{ y: -1 }}
           disabled={disabled}
           onClick={() => handleKeyClick(() => onDigit('0'))}
-          className="atm-keypad-btn h-14 rounded-xl text-xl font-bold font-mono flex items-center justify-center transition"
+          className="h-12 rounded-xl text-lg font-semibold font-mono flex items-center justify-center transition disabled:opacity-40 bg-[#FCFBF8] hover:bg-white border border-[#E6E0D4] text-[#171715] hover:border-[#B5935A] shadow-warm-xs"
         >
           0
-        </button>
+        </motion.button>
 
         {/* Backspace */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.96 }}
+          whileHover={{ y: -1 }}
           disabled={disabled}
           onClick={() => handleKeyClick(onBackspace)}
-          className="atm-keypad-btn h-14 rounded-xl text-xs font-bold uppercase text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-300 flex flex-col items-center justify-center transition"
+          className="h-12 rounded-xl text-[11px] font-mono tracking-wider font-semibold uppercase text-[#9F1239] border border-[#F7D1D9] bg-[#FDF2F4] hover:bg-[#FBE4E8] flex flex-col items-center justify-center transition disabled:opacity-40 shadow-warm-xs"
           title="Delete"
         >
-          <Delete className="w-4 h-4 mb-0.5" />
-          <span>Del</span>
-        </button>
+          <Delete className="w-3.5 h-3.5 mb-0.5" />
+          <span>DEL</span>
+        </motion.button>
       </div>
 
-      {/* Enter Action */}
-      <button
+      {/* Enter Action in Deep Forest Green */}
+      <motion.button
         type="button"
+        whileTap={{ scale: 0.98 }}
+        whileHover={{ y: -1 }}
         disabled={disabled}
         onClick={() => handleKeyClick(onEnter)}
-        className="w-full mt-3 h-12 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+        className="w-full mt-3.5 h-12 py-2.5 rounded-xl bg-gradient-to-r from-[#102A22] to-[#193D32] hover:from-[#193D32] hover:to-[#225042] text-[#FAF8F3] font-sans font-medium text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-warm-xs transition disabled:opacity-40 border border-[#255243]/50"
       >
-        <CornerDownLeft className="w-4 h-4" />
+        <CornerDownLeft className="w-4 h-4 stroke-[2.2] text-[#B5935A]" />
         <span>Confirm Amount</span>
-      </button>
+      </motion.button>
     </div>
   );
 };

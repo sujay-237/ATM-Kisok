@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Fingerprint, CheckCircle2, AlertCircle, RefreshCw, KeyRound, ShieldCheck, Delete, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Fingerprint, CheckCircle2, AlertCircle, RefreshCw, KeyRound, ShieldCheck, Delete, ArrowLeft, Zap } from 'lucide-react';
 import { MobileUser, ScannedSession } from '../types';
 import { mobileApi } from '../services/api';
 import { NativeBiometricAuth, isNativeAndroidApp } from '../services/biometric';
@@ -7,14 +8,18 @@ import { NativeBiometricAuth, isNativeAndroidApp } from '../services/biometric';
 interface BiometricScreenProps {
   user: MobileUser;
   session: ScannedSession;
+  prestagedAmount?: number | null;
   onBiometricSuccess: () => void;
+  onTriggerDuress?: () => void;
   onCancel: () => void;
 }
 
 export const BiometricScreen: React.FC<BiometricScreenProps> = ({
   user,
   session,
+  prestagedAmount,
   onBiometricSuccess,
+  onTriggerDuress,
   onCancel,
 }) => {
   const [authenticating, setAuthenticating] = useState<boolean>(false);
@@ -28,57 +33,59 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
   const [passcode, setPasscode] = useState<string>('');
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
 
-  const REQUIRED_PASSCODE = '1111';
+  // Discreet duress long-press state
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Successful verification complete handler
-  const handleAuthComplete = useCallback(async (method: 'FINGERPRINT' | 'PASSCODE_FALLBACK') => {
+  const REQUIRED_PASSCODE = '1111';
+  const DURESS_PASSCODE = user.duress_pin || '4321';
+
+  const handleAuthComplete = useCallback(async (method: 'FINGERPRINT' | 'PASSCODE_FALLBACK', isDuress: boolean = false) => {
     try {
       setAuthenticating(true);
       setError(null);
-      // Notify FastAPI backend
-      await mobileApi.verifyLocalBiometrics(session.sessionId, user.id, method);
+      if (isDuress && onTriggerDuress) {
+        onTriggerDuress();
+      }
+
+      await mobileApi.verifyLocalBiometrics(session.sessionId, user.id, method, isDuress);
       setVerified(true);
       setTimeout(() => {
         onBiometricSuccess();
-      }, 600);
+      }, 700);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Verification failed on server');
     } finally {
       setAuthenticating(false);
     }
-  }, [session.sessionId, user.id, onBiometricSuccess]);
+  }, [session.sessionId, user.id, onTriggerDuress, onBiometricSuccess]);
 
-  // Trigger Phone's Native Fingerprint Scanner Pop-up
   const triggerNativeFingerprint = useCallback(async () => {
     try {
       setAuthenticating(true);
       setError(null);
       setPasscodeError(null);
 
-      // Invoke Android BiometricPrompt popup
       const result = await NativeBiometricAuth.authenticate({
-        title: 'ATM Fingerprint Verification',
-        subtitle: `Terminal ${session.kioskId} • Place finger on sensor`,
-        cancelButtonText: 'Use Passcode (1111)',
+        title: 'Private Wealth Biometric Access',
+        subtitle: `Concierge Terminal ${session.kioskId} • Touch sensor`,
+        cancelButtonText: 'Use Security Code (1111)',
       });
 
       if (result.success) {
-        await handleAuthComplete('FINGERPRINT');
+        await handleAuthComplete('FINGERPRINT', false);
       } else {
-        // User cancelled or requested fallback passcode
-        setError(result.error || 'Fingerprint verification canceled.');
+        setError(result.error || 'Biometric verification canceled.');
         setUsePasscodeMode(true);
       }
     } catch (err: unknown) {
       console.warn('Native biometric error, switching to passcode fallback:', err);
-      setError('Fingerprint hardware unavailable. Please use the 4-digit passcode.');
+      setError('Biometric hardware unavailable. Please use the 4-digit security code.');
       setUsePasscodeMode(true);
     } finally {
       setAuthenticating(false);
     }
   }, [session.kioskId, handleAuthComplete]);
 
-  // Initial check on mount
   useEffect(() => {
     let isMounted = true;
 
@@ -91,17 +98,14 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
             setHasNativeBiometrics(status.isAvailable);
             setCheckingHardware(false);
             if (status.isAvailable) {
-              // Immediately trigger phone fingerprint dialog on native Android
               setTimeout(() => {
                 triggerNativeFingerprint();
               }, 300);
             } else {
-              // No biometrics enrolled or available on hardware -> show passcode 1111 mode
               setUsePasscodeMode(true);
             }
           }
         } else {
-          // Running on Web Browser: if no fingerprint is connected, automatically switch to passcode 1111
           if (isMounted) {
             setHasNativeBiometrics(false);
             setCheckingHardware(false);
@@ -123,7 +127,6 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
     };
   }, [triggerNativeFingerprint]);
 
-  // Handle Passcode Digit Entry
   const handleDigit = (digit: string) => {
     if (passcode.length >= 4) return;
     const nextPin = passcode + digit;
@@ -131,10 +134,12 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
     setPasscodeError(null);
 
     if (nextPin.length === 4) {
-      if (nextPin === REQUIRED_PASSCODE) {
-        handleAuthComplete('PASSCODE_FALLBACK');
+      if (nextPin === DURESS_PASSCODE) {
+        handleAuthComplete('PASSCODE_FALLBACK', true);
+      } else if (nextPin === REQUIRED_PASSCODE) {
+        handleAuthComplete('PASSCODE_FALLBACK', false);
       } else {
-        setPasscodeError('Incorrect Passcode. (Hint: 1111)');
+        setPasscodeError('Incorrect Security Code. (Hint: 1111)');
         setTimeout(() => {
           setPasscode('');
         }, 800);
@@ -152,182 +157,243 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
     setPasscodeError(null);
   };
 
+  // Feature 4: Discreet Long-press (2s) on the Shield Icon for Silent Duress
+  const handleShieldTouchStart = () => {
+    longPressTimerRef.current = setTimeout(() => {
+      if (onTriggerDuress) {
+        onTriggerDuress();
+      }
+      handleAuthComplete('PASSCODE_FALLBACK', true);
+    }, 2000);
+  };
+
+  const handleShieldTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col justify-between p-6 bg-white text-slate-900 animate-fade-in select-none">
+    <div className="flex-1 flex flex-col justify-between p-6 bg-[#F5F2EB] text-[#171715] select-none font-sans relative overflow-hidden antialiased">
       {/* Top Banner */}
-      <div className="pt-2 text-center">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-200">
-          <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-          <span>ATM Terminal: {session.kioskId}</span>
+      <div className="pt-1 text-center relative z-10">
+        <div
+          onTouchStart={handleShieldTouchStart}
+          onTouchEnd={handleShieldTouchEnd}
+          onMouseDown={handleShieldTouchStart}
+          onMouseUp={handleShieldTouchEnd}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FCFBF8] text-[#171715] text-[11px] font-semibold border border-[#E6E0D4] shadow-warm-xs cursor-pointer"
+          title="Hardware Protected Enclave"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-[#155E43]" />
+          <span className="font-mono">Concierge Terminal: {session.kioskId}</span>
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mt-2.5">
-          {usePasscodeMode ? 'Enter Security Passcode' : 'Fingerprint Verification'}
+
+        {prestagedAmount && (
+          <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F4EFE4] border border-[#E2D4BC] text-[#B5935A] text-[10px] font-mono font-semibold">
+            <Zap className="w-3 h-3 text-[#B5935A] fill-[#B5935A]" />
+            <span>Express ₹{prestagedAmount.toLocaleString()} Pre-Staged</span>
+          </div>
+        )}
+
+        <h2 className="text-xl sm:text-2xl font-serif font-semibold text-[#171715] mt-2.5 tracking-tight">
+          {usePasscodeMode ? 'Enter Security Code' : 'Biometric Identity Verification'}
         </h2>
-        <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+        <p className="text-xs text-[#666156] mt-1 max-w-xs mx-auto font-sans leading-relaxed">
           {usePasscodeMode
-            ? 'Web / Fallback authentication: enter your 4-digit passcode to authorize ATM withdrawal.'
-            : 'Touch your phone’s fingerprint scanner to authenticate.'}
+            ? 'Enter your 4-digit security code to authorize this concierge withdrawal.'
+            : 'Touch the hardware biometric sensor to verify your identity.'}
         </p>
       </div>
 
-      {/* Main Content Area: Either Native Sensor or Passcode Keypad */}
+      {/* Main Content Area */}
       {usePasscodeMode ? (
         /* ================= PASSCODE (1111) MODE ================= */
-        <div className="my-auto flex flex-col items-center max-w-xs mx-auto w-full">
+        <div className="my-auto flex flex-col items-center max-w-xs mx-auto w-full relative z-10">
           {/* PIN Dots Display */}
-          <div className="flex items-center justify-center space-x-3 mb-3">
+          <div className="flex items-center justify-center space-x-3.5 mb-3">
             {[0, 1, 2, 3].map((idx) => {
               const filled = passcode.length > idx;
               return (
                 <div
                   key={idx}
-                  className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
+                  className={`w-4 h-4 rounded-full border transition-all duration-200 ${
                     verified
-                      ? 'bg-emerald-500 border-emerald-500 scale-110'
+                      ? 'bg-[#155E43] border-[#155E43] scale-110 shadow-warm-xs'
                       : passcodeError
-                      ? 'bg-rose-500 border-rose-500 animate-shake'
+                      ? 'bg-[#9F1239] border-[#9F1239]'
                       : filled
-                      ? 'bg-blue-600 border-blue-600 scale-105'
-                      : 'border-slate-300 bg-slate-100'
+                      ? 'bg-[#102A22] border-[#102A22] scale-105'
+                      : 'border-[#D8D2C5] bg-[#FCFBF8]'
                   }`}
                 />
               );
             })}
           </div>
 
-          {/* Hint badge */}
           <div className="mb-4">
-            <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-              Demo Passcode: <strong className="text-blue-700 font-bold">1111</strong>
+            <span className="text-[10px] font-mono tracking-wider px-2.5 py-0.5 rounded-full bg-[#F4EFE4] text-[#B5935A] border border-[#E2D4BC]">
+              Standard Code: <strong className="text-[#102A22] font-bold">1111</strong>
             </span>
           </div>
 
           {passcodeError && (
-            <div className="mb-3 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+            <div className="mb-3 px-3 py-1.5 rounded-xl bg-[#FDF2F4] border border-[#F7D1D9] text-[#9F1239] text-xs flex items-center gap-1.5 font-mono">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[#9F1239]" />
               <span>{passcodeError}</span>
             </div>
           )}
 
           {verified && (
-            <div className="mb-3 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-1.5 animate-bounce">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Passcode Verified!</span>
+            <div className="mb-3 px-3 py-1.5 rounded-xl bg-[#EBF5F0] border border-[#CDE5D9] text-[#155E43] text-xs flex items-center gap-1.5 font-mono">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#155E43]" />
+              <span>Identity Verified</span>
             </div>
           )}
 
-          {/* Clean Modern 3x4 Keypad */}
+          {/* Clean Tactile 3x4 Keypad in Swiss Warm Styling */}
           <div className="grid grid-cols-3 gap-2 w-full max-w-[240px]">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-              <button
+              <motion.button
                 key={digit}
+                whileTap={{ scale: 0.94 }}
                 type="button"
                 disabled={authenticating || verified}
                 onClick={() => handleDigit(digit)}
-                className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-blue-50 active:text-blue-700 border border-slate-200 text-slate-800 font-bold text-lg shadow-sm transition flex items-center justify-center disabled:opacity-50"
+                className="h-12 rounded-xl bg-[#FCFBF8] hover:bg-white border border-[#E6E0D4] text-[#171715] font-mono font-semibold text-lg shadow-warm-xs transition flex items-center justify-center disabled:opacity-50 hover:border-[#B5935A]"
               >
                 {digit}
-              </button>
+              </motion.button>
             ))}
             <button
               type="button"
               disabled={authenticating || verified}
               onClick={handleClear}
-              className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-500 text-xs font-semibold shadow-sm transition flex items-center justify-center disabled:opacity-50"
+              className="h-12 rounded-xl bg-[#F5F2EB] hover:bg-white border border-[#E6E0D4] text-[#666156] text-xs font-mono font-medium transition flex items-center justify-center disabled:opacity-50"
             >
-              Clear
+              CLR
             </button>
-            <button
+            <motion.button
+              whileTap={{ scale: 0.94 }}
               type="button"
               disabled={authenticating || verified}
               onClick={() => handleDigit('0')}
-              className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-blue-50 active:text-blue-700 border border-slate-200 text-slate-800 font-bold text-lg shadow-sm transition flex items-center justify-center disabled:opacity-50"
+              className="h-12 rounded-xl bg-[#FCFBF8] hover:bg-white border border-[#E6E0D4] text-[#171715] font-mono font-semibold text-lg shadow-warm-xs transition flex items-center justify-center disabled:opacity-50 hover:border-[#B5935A]"
             >
               0
-            </button>
+            </motion.button>
             <button
               type="button"
               disabled={authenticating || verified}
               onClick={handleBackspace}
-              className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-500 shadow-sm transition flex items-center justify-center disabled:opacity-50"
+              className="h-12 rounded-xl bg-[#F5F2EB] hover:bg-white border border-[#E6E0D4] text-[#666156] transition flex items-center justify-center disabled:opacity-50"
             >
-              <Delete className="w-4 h-4 text-slate-600" />
+              <Delete className="w-4 h-4 text-[#666156]" />
             </button>
           </div>
 
-          {/* Quick Fill Button */}
           <button
             type="button"
             disabled={authenticating || verified}
             onClick={() => {
               setPasscode('1111');
-              handleAuthComplete('PASSCODE_FALLBACK');
+              handleAuthComplete('PASSCODE_FALLBACK', false);
             }}
-            className="mt-3 text-[11px] text-blue-600 hover:text-blue-800 font-medium underline"
+            className="mt-3.5 text-[11px] text-[#666156] hover:text-[#102A22] font-mono underline"
           >
-            Auto-fill Passcode 1111
+            Auto-fill Security Code 1111
           </button>
         </div>
       ) : (
-        /* ================= NATIVE FINGERPRINT SENSOR MODE ================= */
-        <div className="my-auto flex flex-col items-center">
-          <button
-            type="button"
-            onClick={triggerNativeFingerprint}
-            disabled={authenticating || verified || checkingHardware}
-            className={`p-9 rounded-full border-2 transition-all focus:outline-none shadow-sm ${
-              verified
-                ? 'bg-emerald-50 border-emerald-400'
-                : authenticating
-                ? 'bg-blue-50 border-blue-400 animate-pulse'
-                : 'bg-blue-50/70 border-blue-200 hover:border-blue-500 active:scale-95'
-            }`}
-          >
-            {verified ? (
-              <CheckCircle2 className="w-16 h-16 text-emerald-600 animate-bounce" />
-            ) : authenticating ? (
-              <RefreshCw className="w-16 h-16 text-blue-600 animate-spin" />
-            ) : (
-              <Fingerprint className="w-16 h-16 text-blue-600" />
-            )}
-          </button>
+        /* ================= NATIVE FINGERPRINT SENSOR MODE WITH CONCENTRIC CALM BREATHING RINGS ================= */
+        <div className="my-auto flex flex-col items-center relative z-10">
+          <div className="relative flex items-center justify-center p-8">
+            <motion.div
+              animate={{
+                scale: [1, 1.25, 1],
+                opacity: [0.35, 0.65, 0.35],
+              }}
+              transition={{
+                duration: 2.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+              className="absolute inset-0 rounded-full bg-[#F4EFE4]/80 border border-[#B5935A]/30"
+            />
+            <motion.div
+              animate={{
+                scale: [1, 1.45, 1],
+                opacity: [0.15, 0.4, 0.15],
+              }}
+              transition={{
+                duration: 2.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: 0.4,
+              }}
+              className="absolute inset-[-12px] rounded-full bg-[#EBF5F0]/60 border border-[#155E43]/20"
+            />
 
-          <p className="mt-4 text-xs font-semibold text-slate-800">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={triggerNativeFingerprint}
+              disabled={authenticating || verified || checkingHardware}
+              className={`p-9 rounded-full border-2 transition-all focus:outline-none relative z-10 ${
+                verified
+                  ? 'bg-[#EBF5F0] border-[#155E43] shadow-warm-sm'
+                  : authenticating
+                  ? 'bg-[#FCFBF8] border-[#B5935A] shadow-warm-sm'
+                  : 'bg-[#FCFBF8] border-[#E6E0D4] hover:border-[#B5935A] shadow-warm-md'
+              }`}
+            >
+              {verified ? (
+                <CheckCircle2 className="w-16 h-16 text-[#155E43]" />
+              ) : authenticating ? (
+                <RefreshCw className="w-16 h-16 text-[#B5935A] animate-spin" />
+              ) : (
+                <Fingerprint className="w-16 h-16 text-[#102A22]" />
+              )}
+            </motion.button>
+          </div>
+
+          <p className="mt-4 text-xs font-serif font-semibold text-[#171715]">
             {verified
               ? 'Biometrics Verified!'
               : authenticating
-              ? 'Scanning Fingerprint on Device...'
-              : 'Tap to Scan Phone Fingerprint'}
+              ? 'Scanning Fingerprint on Enclave...'
+              : 'Tap to Scan Device Fingerprint'}
           </p>
 
-          <p className="text-[11px] text-slate-400 mt-1 max-w-[220px]">
-            Uses Android BiometricPrompt hardware sensor
+          <p className="text-[10px] text-[#9A9386] mt-1 max-w-[220px] font-mono text-center">
+            Hardware Biometric Enclave
           </p>
 
           {error && (
-            <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs max-w-xs">
+            <div className="mt-3 p-2.5 rounded-xl bg-[#FDF2F4] border border-[#F7D1D9] text-[#9F1239] text-xs max-w-xs font-mono">
               {error}
             </div>
           )}
 
-          {/* Switch to Passcode Button */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.96 }}
             type="button"
             onClick={() => setUsePasscodeMode(true)}
-            className="mt-5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition"
+            className="mt-5 px-4 py-2 rounded-xl bg-[#FCFBF8] hover:bg-white border border-[#E6E0D4] text-[#171715] text-xs font-sans font-medium flex items-center gap-1.5 transition shadow-warm-xs"
           >
-            <KeyRound className="w-3.5 h-3.5 text-slate-600" />
-            <span>Use Passcode (1111) Instead</span>
-          </button>
+            <KeyRound className="w-3.5 h-3.5 text-[#B5935A]" />
+            <span>Use Security Code (1111) Instead</span>
+          </motion.button>
         </div>
       )}
 
       {/* Footer Controls */}
-      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+      <div className="pt-3 border-t border-[#E6E0D4] flex items-center justify-between relative z-10">
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1"
+          className="text-xs text-[#666156] hover:text-[#171715] font-sans font-medium flex items-center gap-1 transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Cancel Session</span>
@@ -340,7 +406,7 @@ export const BiometricScreen: React.FC<BiometricScreenProps> = ({
               setUsePasscodeMode(false);
               triggerNativeFingerprint();
             }}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+            className="text-xs text-[#102A22] hover:underline font-sans font-medium flex items-center gap-1 transition"
           >
             <Fingerprint className="w-3.5 h-3.5" />
             <span>Switch to Fingerprint</span>

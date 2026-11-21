@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Camera, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Upload, Camera, CheckCircle2, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface ProfileSelfieModalProps {
   userId: string;
@@ -55,7 +56,7 @@ export const ProfileSelfieModal: React.FC<ProfileSelfieModalProps> = ({
         videoRef.current.play();
       }
       setIsWebcamActive(true);
-    } catch (err) {
+    } catch {
       setError('Unable to access camera.');
     }
   };
@@ -99,131 +100,156 @@ export const ProfileSelfieModal: React.FC<ProfileSelfieModalProps> = ({
         body: JSON.stringify({ reference_selfie_base64: preview }),
       });
 
-      if (!res.ok) throw new Error('Failed to update photo');
+      if (!res.ok) throw new Error('Failed to update portrait');
       setSuccess(true);
       setTimeout(() => {
         onUpdated();
         onClose();
       }, 1000);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error updating photo');
+      setError(e instanceof Error ? e.message : 'Error updating portrait');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl relative text-slate-900">
-        <button
-          onClick={() => {
-            stopWebcam();
-            onClose();
-          }}
-          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#171715]/40 backdrop-blur-sm text-[#171715]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.97, y: 10 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="w-full max-w-md luxury-card rounded-2xl p-6 shadow-xl relative"
         >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 mx-auto mb-3">
-            <Camera className="w-6 h-6" />
-          </div>
-          <h3 className="text-xl font-bold">Biometric Reference Baseline</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Registered baseline image for Gemini Multimodal facial verification during ATM sessions.
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Photo Container */}
-        <div className="flex flex-col items-center justify-center mb-6">
-          <div className="w-48 h-48 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden relative shadow-inner flex items-center justify-center">
-            {isWebcamActive ? (
-              <video
-                ref={videoRef}
-                playsInline
-                autoPlay
-                muted
-                className="w-full h-full object-cover transform -scale-x-100"
-              />
-            ) : preview ? (
-              <img src={preview} alt={userName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="text-center p-4 text-slate-400 text-xs">
-                <Camera className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                No reference photo registered
-              </div>
-            )}
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          <div className="flex gap-2 mt-4 w-full">
-            {isWebcamActive ? (
-              <button
-                type="button"
-                onClick={capturePhoto}
-                className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition"
-              >
-                Snap Photo
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={startWebcam}
-                  className="flex-1 py-2 px-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>Use Camera</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-2 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Choose File</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
           <button
-            type="button"
             onClick={() => {
               stopWebcam();
               onClose();
             }}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+            className="absolute top-5 right-5 p-2 rounded-xl text-[#9A9386] hover:text-[#171715] hover:bg-[#F5F2EB] transition"
           >
-            Cancel
+            <X className="w-5 h-5" />
           </button>
-          <button
-            type="button"
-            disabled={loading || !preview}
-            onClick={handleSave}
-            className="px-6 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
-          >
-            {success ? 'Saved!' : loading ? 'Saving...' : 'Save Baseline'}
-          </button>
-        </div>
+
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A] mx-auto mb-3">
+              <Camera className="w-6 h-6 stroke-[1.8]" />
+            </div>
+            <h3 className="text-2xl font-serif font-semibold text-[#171715]">Biometric Identity Baseline</h3>
+            <p className="text-xs text-[#666156] mt-1">
+              Registered baseline portrait used for cardless biometric identity verification at ATM terminals.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-xl bg-[#FDF2F4] border border-[#F8CBD4] text-[#9F1239] text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-[#9F1239]" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Photo Container */}
+          <div className="flex flex-col items-center justify-center mb-6">
+            <div className="w-44 h-44 rounded-full bg-[#F5F2EB] border-2 border-[#B5935A] overflow-hidden relative shadow-sm flex items-center justify-center p-0.5">
+              {isWebcamActive ? (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  autoPlay
+                  muted
+                  className="w-full h-full object-cover rounded-full transform -scale-x-100"
+                />
+              ) : preview ? (
+                <img src={preview} alt={userName} className="w-full h-full object-cover rounded-full" />
+              ) : (
+                <div className="text-center p-4 text-[#9A9386] text-xs">
+                  <Camera className="w-8 h-8 mx-auto mb-2 text-[#9A9386]" />
+                  No reference portrait
+                </div>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            <div className="flex gap-2 mt-5 w-full">
+              {isWebcamActive ? (
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={capturePhoto}
+                  className="flex-1 py-2 px-3 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition shadow-sm"
+                >
+                  Snap Photo
+                </motion.button>
+              ) : (
+                <>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={startWebcam}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Camera className="w-4 h-4 text-[#B5935A]" />
+                    <span>Use Camera</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-[#E6E0D4] bg-[#FCFBF8] hover:bg-[#F5F2EB] text-[#171715] font-medium text-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <Upload className="w-4 h-4 text-[#666156]" />
+                    <span>Choose File</span>
+                  </motion.button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-[#E6E0D4] flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                stopWebcam();
+                onClose();
+              }}
+              className="px-4 py-2 rounded-xl border border-[#E6E0D4] text-[#666156] text-xs font-medium hover:bg-[#F5F2EB] transition"
+            >
+              Cancel
+            </button>
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              type="button"
+              disabled={loading || !preview}
+              onClick={handleSave}
+              className="px-6 py-2 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] text-xs font-medium tracking-wider uppercase shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#B5935A]" />}
+              {success ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#B5935A]" />
+                  <span>Saved!</span>
+                </>
+              ) : loading ? (
+                'Saving...'
+              ) : (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#B5935A]" />
+                  <span>Save Baseline</span>
+                </>
+              )}
+            </motion.button>
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   );
 };

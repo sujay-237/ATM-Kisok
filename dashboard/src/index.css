@@ -4,33 +4,88 @@
 
 @layer base {
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #F5F2EB;
+    color: #171715;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image: radial-gradient(rgba(24, 34, 28, 0.025) 1px, transparent 0);
+    background-size: 20px 20px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+    color: #171715;
+    letter-spacing: -0.015em;
+  }
+
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: 'tnum' 1;
   }
 }
 
-/* Institutional custom scrollbars */
+/* Swiss Private Wealth Surfaces */
+.luxury-card {
+  background-color: #FCFBF8;
+  border: 1px solid #E6E0D4;
+  box-shadow: 0 12px 32px -12px rgba(24, 34, 28, 0.07);
+}
+
+.luxury-card-hover {
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.luxury-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -12px rgba(24, 34, 28, 0.12);
+  border-color: #D4CBBC;
+}
+
+/* Signature Heritage Wealth Card (Deep Forest Green Satin) */
+.heritage-forest-card {
+  background: linear-gradient(135deg, #102A22 0%, #15382E 50%, #193D32 100%);
+  color: #FAF8F3;
+  border: 1px solid rgba(181, 147, 90, 0.35);
+  box-shadow: 0 16px 36px -12px rgba(16, 42, 34, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.heritage-forest-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(181, 147, 90, 0.04) 45%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(181, 147, 90, 0.04) 55%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.heritage-forest-card:hover::after {
+  transform: translateX(60%) skewX(-20deg);
+}
+
+/* Subtle Editorial Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #F5F2EB;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #D4CBBC;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  background: #B5935A;
 }

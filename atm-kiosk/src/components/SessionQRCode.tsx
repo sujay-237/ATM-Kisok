@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { Smartphone, RefreshCw, AlertCircle, Fingerprint, Camera } from 'lucide-react';
+import { Smartphone, RefreshCw, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { KioskSession } from '../types';
-import { sounds } from '../utils/sound';
 
 interface SessionQRCodeProps {
   session: KioskSession | null;
@@ -23,11 +23,11 @@ export const SessionQRCode: React.FC<SessionQRCodeProps> = ({
   useEffect(() => {
     if (session?.qr_payload && canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, session.qr_payload, {
-        width: 250,
-        margin: 2,
+        width: 230,
+        margin: 1,
         color: {
-          dark: '#0f172a', // Deep slate black
-          light: '#ffffff', // Crisp pure white
+          dark: '#171715',
+          light: '#FFFFFF',
         },
       }, (err) => {
         if (err) console.error('QR code render error:', err);
@@ -53,103 +53,113 @@ export const SessionQRCode: React.FC<SessionQRCodeProps> = ({
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const isExpiringSoon = timeLeft < 30;
+  const progressRatio = Math.max(0, Math.min(1, timeLeft / 180));
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-2xl mx-auto py-6">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col items-center justify-center max-w-xl mx-auto py-4"
+    >
       {/* Title & Help */}
       <div className="text-center mb-6">
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Cardless ATM Access
+        <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F4EFE4] border border-[#E2D4BC] text-[10px] font-mono tracking-[0.14em] uppercase text-[#B5935A] font-semibold mb-3">
+          <Sparkles className="w-3 h-3 text-[#B5935A]" />
+          <span>Cardless Biometric Terminal</span>
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-serif font-semibold text-[#171715] tracking-tight">
+          Client Authentication
         </h2>
-        <p className="text-slate-600 text-sm mt-1 max-w-md mx-auto">
-          Scan the QR code with your mobile banking app to verify your identity and withdraw cash securely.
+        <p className="text-[#666156] text-xs sm:text-sm mt-1.5 max-w-md mx-auto font-sans leading-relaxed">
+          Open the Sentinel Mobile App on your authorized device and present camera to verify identity.
         </p>
       </div>
 
-      {/* Main QR Card */}
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-md flex flex-col items-center">
-        {/* QR Code Container */}
-        <div className="relative p-3 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center min-w-[260px] min-h-[260px]">
+      {/* Main QR Card with Warm Ivory & Champagne Gold Corners */}
+      <div className="w-full max-w-sm bg-[#FCFBF8] border border-[#E6E0D4] rounded-3xl p-7 flex flex-col items-center relative shadow-warm-lg">
+        {/* Decorative Delicate Corner Accents */}
+        <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-[#B5935A]/50 rounded-tl-sm pointer-events-none" />
+        <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-[#B5935A]/50 rounded-tr-sm pointer-events-none" />
+        <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-[#B5935A]/50 rounded-bl-sm pointer-events-none" />
+        <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-[#B5935A]/50 rounded-br-sm pointer-events-none" />
+
+        {/* QR Code Container with Gold Border Frame */}
+        <div className="p-3.5 bg-white border border-[#E6E0D4] rounded-2xl flex items-center justify-center shadow-inner relative">
           {loading ? (
-            <div className="flex flex-col items-center justify-center space-y-3">
-              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
-              <p className="text-slate-600 text-xs font-medium">Generating Session...</p>
+            <div className="w-[230px] h-[230px] flex flex-col items-center justify-center gap-2 text-[#9A9386]">
+              <RefreshCw className="w-7 h-7 animate-spin text-[#B5935A]" />
+              <span className="text-xs font-mono tracking-wider">GENERATING KEY...</span>
             </div>
           ) : (
             <canvas ref={canvasRef} className="rounded-lg" />
           )}
+        </div>
 
-          {timeLeft === 0 && (
-            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-4 text-center">
-              <AlertCircle className="w-10 h-10 text-rose-500 mb-2" />
-              <p className="text-slate-900 font-bold text-sm">QR Code Expired</p>
-              <p className="text-slate-500 text-xs mt-1 mb-3">Session expired for your security.</p>
-              <button
-                onClick={() => {
-                  sounds.playKeypadBeep();
-                  onRefresh();
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-xl flex items-center gap-1.5 transition"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Refresh QR Code
-              </button>
-            </div>
+        {/* Expiry Progress Bar */}
+        <div className="w-full mt-6">
+          <div className="flex items-center justify-between text-[11px] font-mono tracking-wider text-[#666156] mb-1.5">
+            <span className="uppercase text-[10px]">Session Key Validity</span>
+            <span className={`tabular-nums font-semibold ${isExpiringSoon ? 'text-[#9F1239]' : 'text-[#171715]'}`}>
+              {minutes}:{seconds < 10 ? `0${seconds}` : seconds}
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-[#E6E0D4]/70 rounded-full overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full transition-all duration-1000 ${
+                isExpiringSoon ? 'bg-[#9F1239]' : 'bg-[#102A22]'
+              }`}
+              style={{ width: `${progressRatio * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="w-full mt-6 flex gap-2.5">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            whileHover={{ y: -1 }}
+            type="button"
+            onClick={onRefresh}
+            className="flex-1 py-2.5 px-3 rounded-xl border border-[#E6E0D4] bg-[#F5F2EB] hover:bg-white text-[#171715] font-sans font-medium text-xs flex items-center justify-center gap-1.5 transition shadow-warm-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-[#666156]" />
+            <span>Regenerate Key</span>
+          </motion.button>
+
+          {onSimulateMobileScan && (
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              whileHover={{ y: -1 }}
+              type="button"
+              onClick={onSimulateMobileScan}
+              className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-[#102A22] to-[#193D32] hover:from-[#193D32] hover:to-[#225042] text-[#FAF8F3] font-sans font-medium text-xs flex items-center justify-center gap-1.5 transition shadow-warm-xs border border-[#255243]/50"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-[#B5935A]" />
+              <span>Simulate Scan</span>
+            </motion.button>
           )}
-        </div>
-
-        {/* Expiry Bar */}
-        <div className="mt-5 flex items-center justify-between w-full px-1 text-xs text-slate-500 font-medium">
-          <span>Session Token: <strong className="text-slate-700 font-mono">{session?.session_id ? `${session.session_id.slice(0, 8)}...` : '---'}</strong></span>
-          <span className={`px-2 py-0.5 rounded font-mono ${isExpiringSoon ? 'bg-rose-50 text-rose-600 font-bold' : 'text-slate-600'}`}>
-            Expires: {minutes}:{seconds < 10 ? `0${seconds}` : seconds}
-          </span>
-        </div>
-
-        {/* 3 Steps Guide */}
-        <div className="grid grid-cols-3 gap-2.5 w-full mt-6 pt-5 border-t border-slate-100 text-center">
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
-            <Smartphone className="w-4 h-4 text-blue-600 mb-1" />
-            <span className="text-[11px] font-semibold text-slate-800">1. Open App</span>
-            <span className="text-[10px] text-slate-500">Scan QR Code</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
-            <Fingerprint className="w-4 h-4 text-blue-600 mb-1" />
-            <span className="text-[11px] font-semibold text-slate-800">2. Fingerprint</span>
-            <span className="text-[10px] text-slate-500">Verify Device</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
-            <Camera className="w-4 h-4 text-blue-600 mb-1" />
-            <span className="text-[11px] font-semibold text-slate-800">3. Live Selfie</span>
-            <span className="text-[10px] text-slate-500">Face Match</span>
-          </div>
         </div>
       </div>
 
-      {/* Simulator Shortcut for convenient demoing */}
-      {onSimulateMobileScan && (
-        <div className="mt-6 flex items-center gap-3">
-          <button
-            onClick={() => {
-              sounds.playKeypadBeep();
-              onSimulateMobileScan();
-            }}
-            className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 rounded-xl flex items-center gap-2 shadow-sm transition"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-            <span>Simulate Mobile Scan & Biometrics</span>
-          </button>
-          <button
-            onClick={() => {
-              sounds.playKeypadBeep();
-              onRefresh();
-            }}
-            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl transition shadow-sm"
-            title="Refresh QR"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-    </div>
+      {/* Steps Pill */}
+      <div className="mt-7 flex items-center gap-3 text-xs text-[#666156] font-sans">
+        <span className="flex items-center gap-1.5 font-medium text-[#171715]">
+          <span className="w-5 h-5 rounded-full bg-[#102A22] text-[#FAF8F3] text-[10px] font-mono font-bold flex items-center justify-center">1</span>
+          Scan Key
+        </span>
+        <span className="text-[#D8D2C5]">→</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-5 h-5 rounded-full bg-[#E6E0D4] text-[#666156] text-[10px] font-mono font-bold flex items-center justify-center">2</span>
+          Touch Biometric
+        </span>
+        <span className="text-[#D8D2C5]">→</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-5 h-5 rounded-full bg-[#E6E0D4] text-[#666156] text-[10px] font-mono font-bold flex items-center justify-center">3</span>
+          Collect Banknotes
+        </span>
+      </div>
+    </motion.div>
   );
 };

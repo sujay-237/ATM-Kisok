@@ -7,6 +7,8 @@ export interface User {
   role: 'user' | 'admin';
   account_balance: number;
   is_active: boolean;
+  duress_pin?: string;
+  account_frozen_duress?: boolean;
   has_reference_selfie: boolean;
   created_at: string;
 }
@@ -22,6 +24,9 @@ export interface Transaction {
   kiosk_id: string;
   anomaly_flag: boolean;
   anomaly_reason?: string;
+  is_duress?: boolean;
+  risk_score?: number;
+  risk_factors?: string[];
   created_at: string;
 }
 
@@ -65,4 +70,32 @@ export interface RotatorStatus {
     cooldown_seconds: number;
   }>;
   active_available_keys: number;
+  total_slots?: number;
+}
+
+export interface ActiveSession {
+  session_id: string;
+  kiosk_id: string;
+  status: string;
+  step: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  risk_score: number;
+  risk_factors: string[];
+  shoulder_surfing_detected?: boolean;
+  disguise_detected?: boolean;
+  threat_reason?: string | null;
+  prestaged_amount?: number | null;
+  is_duress?: boolean;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface DuressAlert {
+  kiosk_id: string;
+  user_id: string;
+  user_name: string;
+  decoy_amount: number;
+  timestamp: string;
+  session_id?: string;
 }

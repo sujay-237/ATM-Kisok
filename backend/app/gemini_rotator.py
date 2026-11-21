@@ -78,6 +78,7 @@ class GeminiKeyRotator:
     - If any key encounters 429 Rate Limit, 403/400 Quota/Auth errors, or 503/Timeout:
       it places that key into cooldown and immediately shifts to the next key.
     - Maintains health metrics, cooldown tracking, and audit logs.
+    - Performs full-frame multimodal threat analysis (shoulder-surfing, disguises, deepfakes).
     """
 
     def __init__(self):
@@ -161,7 +162,6 @@ class GeminiKeyRotator:
                 )
             elif status_code in (400, 401, 403):
                 slot.other_errors_count += 1
-                # Mark as cooling down so subsequent requests automatically skip this key
                 slot.cooldown_until = time.time() + self.cooldown_duration
                 slot.last_error = f"HTTP {status_code} Auth/Quota error: {error_msg or 'Access issue'}"
                 log_entry = {
@@ -214,6 +214,11 @@ class GeminiKeyRotator:
     ) -> Dict[str, Any]:
         """
         Verify live selfie against reference photo using Google Gemini Multimodal Vision API.
+        Analyzes the ENTIRE camera frame for:
+          - Facial match & confidence
+          - Shoulder-surfing: second person visible or hovering behind the user
+          - Disguise detection: sunglasses, masks, deepfake artifacts, heavy hoodies obscuring face
+          - Threat reason summary
         Automatically cycles keys in round-robin and performs instant failover to the next key if any key fails.
         """
         ref_data, ref_mime = self._clean_base64(reference_image_b64)
@@ -231,21 +236,36 @@ class GeminiKeyRotator:
                 "match": False,
                 "confidence": 0.0,
                 "liveness_passed": False,
+                "shoulder_surfing_detected": False,
+                "disguise_detected": False,
+                "threat_reason": None,
                 "reason": f"Corrupted or invalid image payload: {str(e)}",
                 "engine": "Validation Filter",
                 "failover_occurred": False,
             }
 
         prompt_instruction = (
-            "You are an ATM Anti-Fraud Biometric AI Verifier. "
-            "Examine the two provided images:\n"
+            "You are an ATM Anti-Fraud Biometric AI & Threat Surveillance Verifier. "
+            "Examine the two provided images thoroughly:\n"
             "Image 1: Registered account holder reference photo.\n"
-            "Image 2: Live selfie captured at ATM mobile kiosk.\n\n"
-            "Analyze:\n"
-            "1. Facial biometric similarity (eyes, nose, jawline, mouth contours).\n"
-            "2. Live presentation: Check for photo spoofing, printed paper, screens, or deepfake masks.\n\n"
-            "Respond ONLY with a JSON object in this exact schema (no markdown formatting, no backticks):\n"
-            "{\"match\": true, \"confidence\": 0.95, \"liveness_passed\": true, \"reason\": \"Facial landmarks match and natural ambient lighting confirms liveness.\"}"
+            "Image 2: Live camera frame captured at the ATM mobile terminal.\n\n"
+            "Perform a strict dual security audit:\n"
+            "1. Facial Biometric Match: Compare facial landmarks (eyes, nose, jawline, mouth contours) between Image 1 and the primary person in Image 2. Determine match (true/false) and confidence (0.0 to 1.0).\n"
+            "2. Liveness & Spoofing Check: Verify natural depth, skin texture, and lighting. Confirm no photo printouts, screen replays, or deepfakes.\n"
+            "3. Entire Frame Threat Surveillance:\n"
+            "   - shoulder_surfing_detected (boolean): Is there an unauthorized second person, bystander, or lurking individual visible in the background or hovering over the user's shoulder?\n"
+            "   - disguise_detected (boolean): Is the user or anyone visible wearing sunglasses, face masks, balaclavas, or heavy hoodies obscuring their facial features?\n"
+            "   - threat_reason (string or null): If shoulder_surfing_detected or disguise_detected is true, describe the observed physical threat concisely.\n\n"
+            "Respond ONLY with a valid JSON object matching this exact schema (no markdown, no backticks, no extra text):\n"
+            "{\n"
+            '  "match": true,\n'
+            '  "confidence": 0.96,\n'
+            '  "liveness_passed": true,\n'
+            '  "shoulder_surfing_detected": false,\n'
+            '  "disguise_detected": false,\n'
+            '  "threat_reason": null,\n'
+            '  "reason": "Facial biometrics match registered profile and live environment verified safe."\n'
+            "}"
         )
 
         gemini_payload = {
@@ -270,7 +290,7 @@ class GeminiKeyRotator:
             ],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 300,
+                "maxOutputTokens": 350,
                 "responseMimeType": "application/json",
             },
         }
@@ -326,8 +346,11 @@ class GeminiKeyRotator:
                                         "match": bool(parsed.get("match", False)),
                                         "confidence": float(parsed.get("confidence", 0.0)),
                                         "liveness_passed": bool(parsed.get("liveness_passed", False)),
+                                        "shoulder_surfing_detected": bool(parsed.get("shoulder_surfing_detected", False)),
+                                        "disguise_detected": bool(parsed.get("disguise_detected", False)),
+                                        "threat_reason": parsed.get("threat_reason") if (parsed.get("shoulder_surfing_detected") or parsed.get("disguise_detected")) else None,
                                         "reason": str(parsed.get("reason", "Gemini biometric comparison verified.")),
-                                        "engine": f"Google Gemini ({model_name} / {slot.key_id})",
+                                        "engine": f"Google Gemini Vision ({model_name} / {slot.key_id})",
                                         "failover_occurred": len(keys_attempted) > 1,
                                         "key_used": slot.key_id,
                                         "keys_attempted": keys_attempted,
@@ -337,8 +360,11 @@ class GeminiKeyRotator:
                                         "match": True,
                                         "confidence": 0.96,
                                         "liveness_passed": True,
+                                        "shoulder_surfing_detected": False,
+                                        "disguise_detected": False,
+                                        "threat_reason": None,
                                         "reason": "Biometric face structure confirmed by Google Gemini Vision.",
-                                        "engine": f"Google Gemini ({model_name} / {slot.key_id})",
+                                        "engine": f"Google Gemini Vision ({model_name} / {slot.key_id})",
                                         "failover_occurred": len(keys_attempted) > 1,
                                         "key_used": slot.key_id,
                                         "keys_attempted": keys_attempted,
@@ -350,7 +376,7 @@ class GeminiKeyRotator:
                                     f"[FAILOVER] Key {slot.key_id} hit 429 Rate Limit. Shifting immediately to next key..."
                                 )
                                 key_failed = True
-                                break  # Break model loop to shift immediately to next key
+                                break
 
                             elif resp.status_code in (400, 401, 403):
                                 await self.record_feedback(slot_idx, resp.status_code, resp.text)
@@ -358,10 +384,9 @@ class GeminiKeyRotator:
                                     f"[FAILOVER] Key {slot.key_id} hit HTTP {resp.status_code}. Shifting immediately to next key..."
                                 )
                                 key_failed = True
-                                break  # Break model loop to shift immediately to next key
+                                break
 
                             elif resp.status_code in (500, 502, 503):
-                                # Temporary service issue, try fallback candidate model first; if both fail, shift key
                                 logger.warning(
                                     f"[ROTATOR] Key {slot.key_id} on {model_name} returned {resp.status_code}. Trying next model or key..."
                                 )
@@ -377,15 +402,13 @@ class GeminiKeyRotator:
                             )
                             continue
 
-                    # If this key failed or reached end of candidate models without 200, shift to next key in rotation
                     if key_failed:
                         continue
 
-                    # If we tested all slots and none succeeded, break out to simulated fallback
                     if len(keys_attempted) >= len([s for s in self.slots if not s.is_placeholder]):
                         break
 
-        # Simulation fallback if network unreachable or keys cooling down
+        # Fallback simulation if network unreachable or keys cooling down
         return self._simulate_biometric_verification(ref_bytes, live_bytes, user_name)
 
     def _simulate_biometric_verification(
@@ -397,6 +420,9 @@ class GeminiKeyRotator:
                     "match": False,
                     "confidence": 0.0,
                     "liveness_passed": False,
+                    "shoulder_surfing_detected": False,
+                    "disguise_detected": False,
+                    "threat_reason": None,
                     "reason": "Missing facial images for biometric analysis.",
                     "engine": "Biometric AI (Validation)",
                     "failover_occurred": True,
@@ -411,6 +437,9 @@ class GeminiKeyRotator:
                     "match": False,
                     "confidence": 0.2,
                     "liveness_passed": False,
+                    "shoulder_surfing_detected": False,
+                    "disguise_detected": False,
+                    "threat_reason": None,
                     "reason": "Live selfie image resolution is too low for facial feature analysis.",
                     "engine": "Biometric AI (Demo Sandbox)",
                     "failover_occurred": True,
@@ -420,6 +449,9 @@ class GeminiKeyRotator:
                 "match": True,
                 "confidence": 0.96,
                 "liveness_passed": True,
+                "shoulder_surfing_detected": False,
+                "disguise_detected": False,
+                "threat_reason": None,
                 "reason": f"Facial feature points matched registered profile for {user_name}. Live micro-movement verified.",
                 "engine": "Biometric AI Engine (Adaptive Model Fallback)",
                 "failover_occurred": True,
@@ -429,6 +461,9 @@ class GeminiKeyRotator:
                 "match": False,
                 "confidence": 0.0,
                 "liveness_passed": False,
+                "shoulder_surfing_detected": False,
+                "disguise_detected": False,
+                "threat_reason": None,
                 "reason": f"Fallback image parsing failed: {str(e)}",
                 "engine": "Biometric AI (Fallback Error)",
                 "failover_occurred": True,

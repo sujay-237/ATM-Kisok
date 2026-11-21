@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 
@@ -37,6 +37,8 @@ class UserDoc(BaseModel):
     phone: str
     full_name: str
     hashed_pin: str
+    duress_pin: Optional[str] = None  # Reverse PIN by default for Silent Duress mode
+    account_frozen_duress: bool = False  # Set True during Silent Duress to lock remaining funds
     account_balance: float = 1000.0
     reference_selfie: Optional[str] = None
     role: str = "user"  # "user" or "admin"
@@ -49,9 +51,16 @@ class AuthSessionDoc(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     kiosk_id: str
     user_id: Optional[str] = None
-    status: str = "CREATED"  # CREATED, QR_SCANNED, BIOMETRICS_VERIFIED, SELFIE_VERIFIED, AUTHORIZED, COMPLETED, EXPIRED, FAILED
+    status: str = "CREATED"  # CREATED, QR_SCANNED, BIOMETRICS_VERIFIED, SELFIE_VERIFIED, AUTHORIZED, COMPLETED, EXPIRED, FAILED, TERMINATED
     failure_reason: Optional[str] = None
     device_info: Optional[str] = None
+    prestaged_amount: Optional[float] = None  # Feature 1: Pre-Staged "10-Second" Withdrawal
+    risk_score: int = 0  # Feature 2: 0-100 real-time risk score
+    risk_factors: List[str] = Field(default_factory=list)
+    shoulder_surfing_detected: bool = False  # Feature 3: Threat detection
+    disguise_detected: bool = False
+    threat_reason: Optional[str] = None
+    is_duress: bool = False  # Feature 4: Silent duress flag
     expires_at: datetime
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -68,6 +77,9 @@ class TransactionDoc(BaseModel):
     kiosk_id: str
     anomaly_flag: bool = False
     anomaly_reason: Optional[str] = None
+    is_duress: bool = False  # Silent duress panic withdrawal
+    risk_score: int = 0  # Real-time computed risk score (0-100)
+    risk_factors: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
 
 

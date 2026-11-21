@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { IndianRupee, Wallet, Eye, EyeOff, UserCheck, AlertTriangle } from 'lucide-react';
+import { Wallet, Eye, EyeOff, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { KioskUser } from '../types';
 import { Keypad } from './Keypad';
 import { sounds } from '../utils/sound';
 
 interface AmountSelectionScreenProps {
   user: KioskUser;
-  onConfirmWithdrawal: (amount: number) => void;
+  onConfirmWithdrawal: (amount: number, pin?: string, isDuress?: boolean) => void;
   onCancel: () => void;
   loading: boolean;
   error?: string | null;
+  shoulderSurfingDetected?: boolean;
+  disguiseDetected?: boolean;
+  threatReason?: string | null;
 }
 
 const PRESET_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000];
@@ -20,11 +24,18 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
   onCancel,
   loading,
   error,
+  shoulderSurfingDetected = false,
+  disguiseDetected = false,
+  threatReason,
 }) => {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(1000);
   const [customAmountStr, setCustomAmountStr] = useState<string>('1000');
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [showBalance, setShowBalance] = useState<boolean>(true);
+
+  // Feature 3: Privacy Shield Mode
+  const initialThreat = Boolean(shoulderSurfingDetected || disguiseDetected);
+  const [privacyShieldActive, setPrivacyShieldActive] = useState<boolean>(initialThreat);
 
   const handlePresetClick = (amount: number) => {
     sounds.playKeypadBeep();
@@ -38,7 +49,7 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
     setSelectedPreset(null);
     setCustomAmountStr((prev) => {
       if (prev === '0' || prev === '100') return digit;
-      if (prev.length >= 5) return prev;
+      if (prev.length >= 6) return prev;
       return prev + digit;
     });
   };
@@ -69,126 +80,160 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
   const currentAmount = parseFloat(customAmountStr) || 0;
 
   return (
-    <div className="max-w-4xl mx-auto py-4 px-4">
-      {/* Top Welcome Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-white border border-slate-200 shadow-sm mb-6">
-        <div className="flex items-center space-x-3.5">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-            <UserCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Welcome, {user.full_name}</h2>
-            <p className="text-xs text-slate-500 font-medium">Identity verified via mobile biometrics</p>
-          </div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      className="max-w-4xl mx-auto py-2 px-4"
+    >
+      {/* Feature 3: Privacy Shield Threat Banner (Burnished Ochre) */}
+      <AnimatePresence>
+        {privacyShieldActive && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 p-4 rounded-2xl bg-[#FDF6E7] border border-[#F0DFB8] text-[#9A6700] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-warm-xs"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-[#9A6700]" />
+              </div>
+              <div>
+                <p className="text-xs font-mono tracking-wider uppercase font-semibold text-[#9A6700]">
+                  Surveillance Privacy Shield Active
+                </p>
+                <p className="text-xs text-[#666156] mt-0.5 font-sans">
+                  {threatReason || (shoulderSurfingDetected ? "Perimeter sensor detected observer standing near terminal. Figures shielded." : "Camera view partially obstructed.")}
+                </p>
+              </div>
+            </div>
+
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              whileHover={{ y: -1 }}
+              onClick={() => {
+                sounds.playKeypadBeep();
+                setPrivacyShieldActive(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#9A6700] hover:bg-[#835600] text-white font-sans font-medium text-xs transition shadow-warm-xs shrink-0 flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Verify Perimeter & Reveal</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Screen Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <span className="text-[10px] font-mono tracking-[0.14em] uppercase text-[#B5935A] font-semibold block mb-0.5">
+            Concierge Cash Service
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-[#171715] tracking-tight">
+            Select Withdrawal Amount
+          </h2>
         </div>
 
-        {/* Balance Preview */}
-        <div className="mt-3 sm:mt-0 flex items-center space-x-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
-          <Wallet className="w-4 h-4 text-blue-700" />
-          <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500">Checking Balance</p>
-            <p className="text-base font-bold text-slate-900 font-mono">
-              {showBalance ? `₹${user.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••••'}
-            </p>
+        {/* User Cardless Balance Strip */}
+        <div className={`p-3.5 px-5 rounded-2xl bg-[#FCFBF8] border border-[#E6E0D4] shadow-warm-xs flex items-center space-x-4 transition-all duration-300 ${
+          privacyShieldActive ? 'blur-md select-none' : ''
+        }`}>
+          <div className="w-8 h-8 rounded-lg bg-[#EBF5F0] border border-[#CDE5D9] text-[#155E43] flex items-center justify-center">
+            <Wallet className="w-4 h-4" />
           </div>
-          <button
-            onClick={() => setShowBalance(!showBalance)}
-            className="p-1 rounded text-slate-400 hover:text-slate-600"
-          >
-            {showBalance ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-          </button>
+          <div>
+            <p className="text-[9px] font-mono tracking-[0.14em] uppercase text-[#9A9386] font-semibold">Available Reserves</p>
+            <div className="flex items-center space-x-2">
+              <span className="text-lg font-serif font-semibold text-[#171715] tabular-nums">
+                {showBalance ? `₹${(user.account_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '••••••••'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowBalance(!showBalance)}
+                className="text-[#9A9386] hover:text-[#171715] p-0.5 transition"
+              >
+                {showBalance ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span className="font-medium">{error}</span>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold text-[11px] transition shrink-0"
-          >
-            Start New Session
-          </button>
+        <div className="mb-4 p-3.5 rounded-xl bg-[#FDF2F4] border border-[#F7D1D9] text-[#9F1239] text-xs font-mono font-medium">
+          {error}
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-        {/* Fast Cash Presets */}
-        <div className="md:col-span-7 space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Fast Cash</h3>
-            <p className="text-xs text-slate-500">Select a preset amount or type below.</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5">
-            {PRESET_AMOUNTS.map((amt) => {
-              const isSelected = selectedPreset === amt && !isCustomMode;
-              return (
-                <button
-                  key={amt}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handlePresetClick(amt)}
-                  className={`p-4 rounded-xl flex flex-col items-center justify-center font-mono transition border ${
-                    isSelected
-                      ? 'bg-blue-700 text-white font-bold border-blue-700 shadow-sm'
-                      : 'bg-white hover:bg-slate-50 text-slate-900 font-bold border-slate-200 shadow-sm'
-                  }`}
-                >
-                  <span className="text-[11px] opacity-70">INR</span>
-                  <span className="text-xl mt-0.5">₹{amt.toLocaleString('en-IN')}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Amount Box */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Withdrawal Amount</p>
-              <div className="flex items-baseline space-x-1 mt-1">
-                <span className="text-2xl text-slate-400 font-mono font-bold">₹</span>
-                <span className="text-4xl font-mono font-bold text-slate-900 tracking-tight">
-                  {customAmountStr || '0'}
+      {/* Main Grid: Preset Chips & Numeric Keypad */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-all duration-300 ${
+        privacyShieldActive ? 'blur-md select-none pointer-events-none' : ''
+      }`}>
+        {/* Left Column: Preset Chips & Display */}
+        <div className="space-y-4">
+          <div className="bg-[#FCFBF8] border border-[#E6E0D4] rounded-2xl p-6 shadow-warm-xs">
+            <label className="block text-[10px] font-mono tracking-[0.14em] uppercase text-[#9A9386] font-semibold mb-2">
+              Requested Banknotes (INR)
+            </label>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4]">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-serif text-[#9A9386]">₹</span>
+                <span className="text-4xl font-serif font-semibold text-[#171715] tabular-nums tracking-tight">
+                  {currentAmount.toLocaleString('en-IN')}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">.00</span>
+              </div>
+              <span className="text-xs font-mono font-medium text-[#666156] bg-[#FCFBF8] px-2.5 py-1 rounded-md border border-[#E6E0D4]">
+                INR
+              </span>
+            </div>
+
+            {/* Fast Quick Select Chips */}
+            <div className="mt-5">
+              <span className="text-[10px] font-mono tracking-[0.14em] uppercase text-[#9A9386] font-semibold block mb-2.5">
+                Standard Denominations
+              </span>
+              <div className="grid grid-cols-3 gap-2.5">
+                {PRESET_AMOUNTS.map((amt) => {
+                  const isSelected = selectedPreset === amt && !isCustomMode;
+                  return (
+                    <motion.button
+                      key={amt}
+                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ y: -1 }}
+                      type="button"
+                      onClick={() => handlePresetClick(amt)}
+                      className={`py-3 px-2 rounded-xl text-xs font-mono font-semibold transition border ${
+                        isSelected
+                          ? 'bg-[#102A22] text-[#FAF8F3] border-[#102A22] shadow-warm-xs'
+                          : 'bg-[#FCFBF8] border-[#E6E0D4] text-[#171715] hover:border-[#B5935A] hover:bg-white'
+                      }`}
+                    >
+                      ₹{amt.toLocaleString('en-IN')}
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            {/* Quick Helper */}
+            <div className="mt-5 pt-4 border-t border-[#E6E0D4]/70 flex items-center justify-between text-xs text-[#9A9386] font-mono">
+              <span>Daily Concierge Limit: ₹50,000</span>
               <button
                 type="button"
                 onClick={onCancel}
-                disabled={loading}
-                className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-medium transition"
+                className="text-[#9F1239] hover:underline font-medium transition"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={loading || currentAmount <= 0}
-                className="px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition flex items-center gap-1.5"
-              >
-                <IndianRupee className="w-4 h-4 stroke-[2.5]" />
-                {loading ? 'Processing...' : 'Dispense Cash'}
+                Cancel Session
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tactile Keypad */}
-        <div className="md:col-span-5 flex flex-col items-center">
-          <div className="w-full text-center mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Numeric Keypad
-            </span>
-          </div>
+        {/* Right Column: Keypad */}
+        <div className="flex flex-col justify-center">
           <Keypad
             onDigit={handleDigit}
             onBackspace={handleBackspace}
@@ -198,6 +243,6 @@ export const AmountSelectionScreen: React.FC<AmountSelectionScreenProps> = ({
           />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

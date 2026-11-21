@@ -9,9 +9,12 @@ This document provides a complete operational guide to the **Cardless ATM Anti-F
 - [1. Operational Summary](#1-operational-summary)
 - [2. End-to-End User Journeys](#2-end-to-end-user-journeys)
   - [Journey 1: Primary User Cardless Cash Withdrawal](#journey-1-primary-user-cardless-cash-withdrawal)
-  - [Journey 2: Delegated Emergency Family Withdrawal](#journey-2-delegated-emergency-family-withdrawal)
-  - [Journey 3: Gemini 3-Key Rotator Failover Recovery](#journey-3-gemini-3-key-rotator-failover-recovery)
-  - [Journey 4: Anti-Fraud SOC Telemetry & Anomaly Triggering](#journey-4-anti-fraud-soc-telemetry--anomaly-triggering)
+  - [Journey 2: Express Pre-Staged 10-Second Cash Dispense](#journey-2-express-pre-staged-10-second-cash-dispense)
+  - [Journey 3: Gemini Shoulder-Surfing Detection & Privacy Shield Mode](#journey-3-gemini-shoulder-surfing-detection--privacy-shield-mode)
+  - [Journey 4: Silent Duress Emergency Extraction & SOC Siren](#journey-4-silent-duress-emergency-extraction--soc-siren)
+  - [Journey 5: Admin Emergency Kill Switch & Terminal Lockout](#journey-5-admin-emergency-kill-switch--terminal-lockout)
+  - [Journey 6: Delegated Emergency Family Withdrawal](#journey-6-delegated-emergency-family-withdrawal)
+  - [Journey 7: Gemini 3-Key Rotator Failover Recovery](#journey-7-gemini-3-key-rotator-failover-recovery)
 - [3. System State Machine & Lifecycle](#3-system-state-machine--lifecycle)
 - [4. WebSocket Protocol Specification](#4-websocket-protocol-specification)
   - [4.1 Kiosk Channel (`/ws/kiosk/{session_id}`)](#41-kiosk-channel-wskiosksession_id)
@@ -60,43 +63,151 @@ sequenceDiagram
     Kiosk->>User: Displays rotating QR code
 
     Note over User,Mobile: Step 2: Out-of-Band Pairing
-    User->>Mobile: Opens app, taps "Cardless Cash", scans ATM QR
+    User->>Mobile: Opens app, taps "Scan Concierge Terminal QR"
     Mobile->>Backend: POST /api/session/{id}/scan {user_id: alex.id}
     Backend-->>Kiosk: WS Event: "QR_SCANNED"
     Kiosk->>User: Display changes: "Connected to Alex's Device"
 
     Note over User,Mobile: Step 3: Biometric Authentication
-    Mobile->>User: Prompts Fingerprint / TouchID
+    Mobile->>User: Prompts Fingerprint / BiometricPrompt
     User->>Mobile: Scans finger (Success)
     Mobile->>Backend: POST /api/session/{id}/biometric-auth
     Backend-->>Kiosk: WS Event: "BIOMETRICS_VERIFIED"
 
     Note over User,Gemini: Step 4: Multimodal Face Verification
-    Mobile->>User: Displays oval selfie camera frame
+    Mobile->>User: Displays gold HUD reticle
     User->>Mobile: Takes live selfie
     Mobile->>Backend: POST /api/verify-selfie {live_selfie_base64}
     Backend->>DB: Fetch Alex's registered reference selfie
     Backend->>Gemini: Compare live selfie vs reference photo
     Gemini-->>Backend: Result {match: true, confidence: 0.96}
     Backend->>DB: Update session status to "AUTHORIZED"
-    Backend-->>Mobile: Display "Authorization Successful! Complete on ATM"
+    Backend-->>Mobile: Display "Authorization Approved!"
     Backend-->>Kiosk: WS Event: "AUTHORIZED"
 
     Note over User,Kiosk: Step 5: Cash Dispensing
     Kiosk->>User: Keypad unlocks with audio feedback
-    User->>Kiosk: Selects "₹1,500"
-    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 1500}
-    Backend->>DB: Atomic decrement balance (₹4,850 -> ₹3,350)
-    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 1500}
-    Kiosk->>User: Motorized tray opens, audio counting sounds, bills ejected
-    Kiosk->>User: Displays summary receipt and returns to Home
+    User->>Kiosk: Selects "₹1,000"
+    Kiosk->>Backend: POST /api/transactions/withdraw {amount: 1000}
+    Backend->>DB: Atomic decrement balance (₹25,000 -> ₹24,000)
+    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 1000, new_balance: 24000}
+    Kiosk->>User: Motorized tray opens, bills eject downward, rolling counter tabulates
+    Kiosk->>User: Displays Swiss debit advice receipt and returns to Home
 ```
 
 ---
 
-### Journey 2: Delegated Emergency Family Withdrawal
+### Journey 2: Express Pre-Staged 10-Second Cash Dispense
 
-In emergency situations, an account holder (e.g., Alex) can grant a family member (e.g., Sarah) temporary cardless withdrawal rights up to a pre-defined spending cap.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Alex (Customer)
+    participant Mobile as Mobile App (Alex)
+    participant Kiosk as ATM Terminal Display
+    participant Backend as FastAPI Server
+    participant DB as MongoDB Atlas
+
+    Note over User,Mobile: 1. Pre-Stage Cash
+    User->>Mobile: Taps "₹2,000" on Express Pre-Stage Selector
+    User->>Mobile: Taps "Scan Concierge Terminal QR"
+
+    Note over User,Kiosk: 2. Scan & Authenticate
+    User->>Kiosk: Scans terminal QR code
+    Mobile->>Backend: POST /api/session/{id}/scan {prestaged_amount: 2000}
+    User->>Mobile: Completes Fingerprint & Facial Selfie
+    Mobile->>Backend: POST /api/verify-selfie {prestaged_amount: 2000}
+
+    Note over Backend,Kiosk: 3. Instant Dispense (Skip Kiosk Prompts!)
+    Backend->>DB: Atomic Decrement (₹25,000 -> ₹23,000)
+    Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 2000, prestaged: true}
+    Kiosk->>User: Cash tray immediately opens & ejects notes in <10s!
+```
+
+---
+
+### Journey 3: Gemini Shoulder-Surfing Detection & Privacy Shield Mode
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Alex (Customer)
+    actor Attacker as Shoulder-Surfer (Behind Alex)
+    participant Mobile as Mobile App
+    participant Backend as FastAPI Server
+    participant Gemini as Gemini Vision AI
+    participant Kiosk as ATM Terminal Display
+
+    User->>Mobile: Captures verification selfie
+    Note over User,Attacker: Attacker is standing 1 meter behind Alex
+    Mobile->>Backend: POST /api/verify-selfie
+    Backend->>Gemini: Inspect facial landmarks & perimeter background
+    Gemini-->>Backend: Result {match: true, shoulder_surfing_detected: true, threat_reason: "Observer detected standing behind user"}
+
+    Note over Backend,Kiosk: Privacy Shield Engaged!
+    Backend-->>Kiosk: WS Event: "AUTHORIZED" {shoulder_surfing_detected: true}
+    Kiosk->>User: Blurs balances and amount displays (blur-md)
+    Kiosk->>User: Displays Burnished Ochre warning banner
+    User->>Kiosk: Steps aside, verifies perimeter, taps "Verify Perimeter & Reveal"
+    Kiosk->>User: Un-blurs screen for secure entry
+```
+
+---
+
+### Journey 4: Silent Duress Emergency Extraction & SOC Siren
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor CoercedUser as Alex (Under Coercion)
+    participant Mobile as Mobile App
+    participant Backend as FastAPI Server
+    participant Kiosk as ATM Terminal Display
+    participant SOC as Admin SOC (/ws/admin)
+
+    Note over CoercedUser,Mobile: Silent Duress Triggered
+    CoercedUser->>Mobile: Enters Duress PIN (4321) OR 2s long-press on Shield
+    Mobile->>Backend: POST /api/session/{id}/biometric-auth {is_duress: true}
+    Mobile->>Backend: POST /api/verify-selfie {is_duress: true}
+
+    Note over Backend,SOC: Hidden SOC Emergency Alert!
+    Backend->>SOC: WS Event: "DURESS_TRIGGERED" {terminal: "KIOSK-EAST-01", risk_score: 100}
+    SOC->>SOC: Plays loud audible siren, flashes crimson threat alert
+
+    Note over Backend,Kiosk: Zero Panic on Terminal
+    Backend-->>Kiosk: WS Event: "AUTHORIZED" (Appears completely normal!)
+    Kiosk->>CoercedUser: Prompts amount, dispenses decoy cash
+    Kiosk->>CoercedUser: Displays standard receipt to protect customer safety
+```
+
+---
+
+### Journey 5: Admin Emergency Kill Switch & Terminal Lockout
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Security Admin (SOC)
+    participant SOC as Admin Dashboard
+    participant Backend as FastAPI Server
+    participant Kiosk as ATM Terminal Display
+    actor SuspiciousUser as Terminal Operator
+
+    Admin->>SOC: Notices High Risk Score (95/100) or Duress
+    Admin->>SOC: Clicks "Emergency Terminate" Kill Switch
+    SOC->>Backend: POST /api/session/{id}/kill
+    Backend->>Backend: Update session status to "TERMINATED"
+    Backend-->>Kiosk: WS Event: "SESSION_TERMINATED" {reason: "Halted by Security Operations"}
+
+    Note over Kiosk,SuspiciousUser: Terminal Lockout!
+    Kiosk->>SuspiciousUser: Instantly aborts dispense
+    Kiosk->>SuspiciousUser: Displays crimson lock overlay: "Session Terminated by Risk Operations"
+    Kiosk->>Kiosk: Auto-resets session after 5 seconds
+```
+
+---
+
+### Journey 6: Delegated Emergency Family Withdrawal
 
 ```mermaid
 sequenceDiagram
@@ -128,17 +239,14 @@ sequenceDiagram
     Sarah->>Kiosk: Requests ₹2,000.00
     Kiosk->>Backend: POST /api/transactions/withdraw {amount: 2000}
     Backend->>DB: Checks delegation (used ₹0 + ₹2,000 <= ₹5,000 max) -> Validated!
-    Backend->>DB: Atomically increments used_amount (₹2,000) and decrements Alex balance
+    Backend->>DB: Atomically increments used_amount and decrements Alex balance
     Backend-->>Kiosk: WS Event: "DISPENSING_CASH" {amount: 2000}
     Kiosk->>Sarah: Ejects ₹2,000 cash notes
-    Backend-->>Dashboard: Real-time notification sent to Alex
 ```
 
 ---
 
-### Journey 3: Gemini 3-Key Rotator Failover Recovery
-
-To guarantee 99.99% verification uptime under cloud rate limits, the system operates an autonomous self-healing key pool:
+### Journey 7: Gemini 3-Key Rotator Failover Recovery
 
 ```mermaid
 sequenceDiagram
@@ -168,146 +276,79 @@ sequenceDiagram
 
 ---
 
-### Journey 4: Anti-Fraud SOC Telemetry & Anomaly Triggering
-
-The backend inspects every transaction against fraud heuristics and broadcasts alerts immediately to the Admin Security Operations Center (SOC).
-
-```
-   [Withdrawal Event Triggered]
-                 │
-                 ▼
- ┌───────────────────────────────┐
- │ Heuristic Rules Engine        │
- ├───────────────────────────────┤
- │ 1. Amount > ₹10,000.00?       │ ──▶ Flag: HIGH_AMOUNT_WITHDRAWAL
- │ 2. Velocity > 3 tx in 15 min? │ ──▶ Flag: RAPID_VELOCITY_SPIKE
- │ 3. Device mismatch?           │ ──▶ Flag: UNKNOWN_DEVICE_FINGERPRINT
- └───────────────┬───────────────┘
-                 │
-                 ▼
- ┌───────────────────────────────┐
- │ Admin WebSocket (/ws/admin)   │
- └───────────────┬───────────────┘
-                 │
-                 ▼
- ┌────────────────────────────────────────────────────────┐
- │ Admin Dashboard SOC Alert:                             │
- │ 🚨 [CRITICAL ANOMALY DETECTED]                         │
- │ User: Alex Mercer | Amount: ₹15,000.00                 │
- │ Reason: Withdrawal exceeds single-transaction ceiling  │
- └────────────────────────────────────────────────────────┘
-```
-
----
-
 ## 3. System State Machine & Lifecycle
 
-The session model strictly prevents unauthorized operations through an explicit Finite State Machine (FSM):
-
 ```
-       ┌──────────────────────────────┐
-       │           CREATED            │
-       │ (Session initialized on ATM) │
-       └──────────────┬───────────────┘
-                      │ POST /api/session/{id}/scan
-                      ▼
-       ┌──────────────────────────────┐
-       │           SCANNED            │
-       │ (Mobile device paired to ATM)│
-       └──────────────┬───────────────┘
-                      │ POST /api/session/{id}/biometric-auth
-                      ▼
-       ┌──────────────────────────────┐
-       │     BIOMETRICS_VERIFIED      │
-       │  (Device hardware verified)  │
-       └──────────────┬───────────────┘
-                      │ POST /api/verify-selfie (Match >= 0.85)
-                      ▼
-       ┌──────────────────────────────┐
-       │          AUTHORIZED          │
-       │  (ATM unlocks cash keypad)   │
-       └──────────────┬───────────────┘
-                      │ POST /api/transactions/withdraw
-                      ▼
-       ┌──────────────────────────────┐
-       │          COMPLETED           │
-       │    (Cash dispensed, closed)  │
-       └──────────────────────────────┘
-
-  * Exception States:
-    - [EXPIRED]: If TTL exceeds 180 seconds at any stage.
-    - [REJECTED]: If facial match confidence < 0.85 or liveness failed.
-    - [CANCELLED]: If customer taps "Cancel" on mobile or ATM terminal.
+┌─────────────────────────────────┬─────────────────────────────────────────────────────────┐
+│ State                           │ Transition Trigger                                      │
+├─────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ `CREATED`                       │ Terminal mounts, fetches session QR from backend.       │
+│ `SCANNED`                       │ Mobile app scans QR, binds device & prestaged amount.   │
+│ `BIOMETRICS_VERIFIED`           │ Device fingerprint / BiometricPrompt succeeds.          │
+│ `AUTHORIZED`                    │ Gemini Vision confirms face >=0.85 & checks perimeter.   │
+│ `DISPENSING`                    │ Terminal executes atomic withdrawal & ejects notes.     │
+│ `COMPLETED`                     │ Banknotes collected; digital advice receipt rendered.   │
+│ `TERMINATED`                    │ Admin triggers Emergency Kill Switch from SOC.          │
+│ `EXPIRED`                       │ Session exceeds 180s TTL without completion.           │
+└─────────────────────────────────┴─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 4. WebSocket Protocol Specification
 
-All real-time communication occurs using lightweight JSON packets over persistent WebSocket connections.
-
 ### 4.1 Kiosk Channel (`/ws/kiosk/{session_id}`)
 
-#### Outbound Events (Server &rarr; Kiosk)
+#### Events
 
-##### 1. `QR_SCANNED`
-Broadcast when the customer scans the dynamic QR code with their mobile banking app:
+##### `QR_SCANNED`
 ```json
 {
   "event": "QR_SCANNED",
   "status": "SCANNED",
-  "session_id": "8e98444c-0a2b-4fc6-b87e-d4501a1dbfe9",
-  "user_name": "Alex Mercer",
-  "timestamp": "2026-10-07T13:45:00.123Z"
+  "prestaged_amount": 2000,
+  "user_name": "Alex Mercer"
 }
 ```
 
-##### 2. `BIOMETRICS_VERIFIED`
-Broadcast when local device biometric authentication (Fingerprint / FaceID) succeeds:
+##### `BIOMETRICS_VERIFIED`
 ```json
 {
   "event": "BIOMETRICS_VERIFIED",
-  "status": "BIOMETRICS_VERIFIED",
-  "biometric_type": "FINGERPRINT",
-  "timestamp": "2026-10-07T13:45:04.456Z"
+  "status": "BIOMETRICS_VERIFIED"
 }
 ```
 
-##### 3. `AUTHORIZED`
-Broadcast when Google Gemini Vision verifies the live selfie against the reference profile:
+##### `AUTHORIZED`
 ```json
 {
   "event": "AUTHORIZED",
   "status": "AUTHORIZED",
-  "confidence": 0.96,
-  "user_id": "usr_alex_001",
-  "available_balance": 4850.00,
-  "is_delegated": false,
-  "timestamp": "2026-10-07T13:45:08.789Z"
+  "user": {"id": "usr_alex_001", "full_name": "Alex Mercer", "account_balance": 25000.0},
+  "prestaged_amount": 2000,
+  "shoulder_surfing_detected": false,
+  "disguise_detected": false,
+  "is_duress": false
 }
 ```
 
-##### 4. `DISPENSING_CASH`
-Broadcast when cash withdrawal is authorized and balance is atomically deducted:
+##### `DISPENSING_CASH`
 ```json
 {
   "event": "DISPENSING_CASH",
-  "status": "DISPENSING",
-  "amount": 150.00,
-  "transaction_id": "tx_c8914b",
-  "new_balance": 4700.00,
-  "timestamp": "2026-10-07T13:45:15.012Z"
+  "status": "COMPLETED",
+  "amount": 2000.0,
+  "new_balance": 23000.0,
+  "transaction_id": "tx_c8914b"
 }
 ```
 
-##### 5. `SESSION_EXPIRED`
-Broadcast when the 180-second session window expires:
+##### `SESSION_TERMINATED`
 ```json
 {
-  "event": "SESSION_EXPIRED",
-  "status": "EXPIRED",
-  "reason": "QR session timed out. New session created.",
-  "timestamp": "2026-10-07T13:48:00.000Z"
+  "event": "SESSION_TERMINATED",
+  "type": "SESSION_TERMINATED",
+  "reason": "Terminal lockout enforced by Central Risk Committee"
 }
 ```
 
@@ -315,33 +356,36 @@ Broadcast when the 180-second session window expires:
 
 ### 4.2 Admin Channel (`/ws/admin`)
 
-#### Real-Time Telemetry Packets
-
-##### 1. `TRANSACTION_LOG`
+##### `DURESS_TRIGGERED`
 ```json
 {
-  "type": "TRANSACTION_LOG",
+  "type": "DURESS_TRIGGERED",
   "data": {
-    "id": "tx_c8914b",
-    "kiosk_id": "KIOSK-EAST-01",
+    "terminal": "KIOSK-EAST-01",
     "user_id": "usr_alex_001",
-    "username": "alex",
-    "amount": 150.00,
-    "status": "COMPLETED",
-    "anomaly_flag": false,
-    "created_at": "2026-10-07T13:45:15.012Z"
+    "risk_score": 100,
+    "timestamp": "2026-11-21T20:30:00.000Z"
   }
 }
 ```
 
-##### 2. `ROTATOR_TELEMETRY`
+##### `BALANCE_UPDATED`
+```json
+{
+  "type": "BALANCE_UPDATED",
+  "user_id": "usr_alex_001",
+  "new_balance": 23000.0
+}
+```
+
+##### `ROTATOR_TELEMETRY`
 ```json
 {
   "type": "ROTATOR_TELEMETRY",
   "data": {
-    "active_slot": "KEY_2",
+    "active_slot": "KEY_1",
     "slots": [
-      {"slot_id": "KEY_1", "status": "COOLDOWN", "cooldown_remaining_sec": 42, "fail_count": 1},
+      {"slot_id": "KEY_1", "status": "HEALTHY", "cooldown_remaining_sec": 0, "fail_count": 0},
       {"slot_id": "KEY_2", "status": "HEALTHY", "cooldown_remaining_sec": 0, "fail_count": 0},
       {"slot_id": "KEY_3", "status": "HEALTHY", "cooldown_remaining_sec": 0, "fail_count": 0}
     ]
@@ -360,8 +404,9 @@ Broadcast when the 180-second session window expires:
 │ Physical Magnetic Skimmers      │ Zero physical card slots exist on the kiosk.          │
 │ Shims on EMV Chip Readers       │ Zero chip reader mechanisms exist on the kiosk.       │
 │ Camera Pinhole PIN Recording    │ Zero PINs are typed on physical ATM hardware.         │
-│ Fake Keypad Overlays            │ Numeric input is only unlocked after biometric match. │
-│ Photo of ATM QR Code Stolen     │ Single-use UUID tokens with 180-second hard TTL.      │
+│ Shoulder-Surfing Peeking        │ Gemini Vision AI detects bystanders; Privacy Shield.  │
+│ Physical Coercion / Duress      │ Silent Duress Mode dispenses decoy & alerts SOC.      │
+│ Rogue Terminal Abuse            │ Central Kill Switch remotely terminates session.      │
 │ Pre-Recorded Video / Deepfakes  │ Multimodal Gemini Vision checks skin texture & depth. │
 │ Stolen Smartphone Attack        │ Requires phone lock + hardware fingerprint + selfie.  │
 │ Network Sniffing & Replays      │ TLS/HTTPS and WSS WebSocket transport encryption.     │
@@ -373,27 +418,18 @@ Broadcast when the 180-second session window expires:
 ## 6. Troubleshooting & Diagnostics Playbook
 
 ### 1. Kiosk Displays "WebSocket Disconnected"
-- **Cause**: Backend server is not running on port 8000 or CORS origin is blocked.
-- **Remedy**:
-  1. Confirm FastAPI is running: `curl http://localhost:8000/health`.
-  2. Verify terminal connection settings in `atm-kiosk/src/App.tsx`.
+- Confirm FastAPI backend is active: `curl http://localhost:8000/health`.
+- Verify terminal connection configuration in `atm-kiosk/src/App.tsx`.
 
 ### 2. Live Selfie Fails Verification
-- **Cause**: Lighting is too dim, face is off-center, or Google Gemini keys are inactive.
-- **Remedy**:
-  1. Check Gemini Rotator health via `http://localhost:8000/api/gemini/status`.
-  2. Ensure the user's reference photo exists via `GET /api/users/{id}/reference-photo`.
-  3. Ensure face is centered inside the mobile camera oval guide.
+- Check Gemini Rotator health: `curl http://localhost:8000/api/gemini/status`.
+- Ensure the user's reference photo exists via `GET /api/users/{id}/reference-photo`.
 
-### 3. Insufficient Balance Error on Withdrawal
-- **Cause**: Withdrawal amount exceeds account balance or active delegation limit.
-- **Remedy**:
-  1. Check account balance on the User Dashboard.
-  2. If using family delegation, ensure the amount does not exceed the remaining delegated quota.
+### 3. Insufficient Balance Error
+- Check user balance on Dashboard or verify remaining delegation quota.
 
 ### 4. Running the E2E Integration Suite
-To verify all system subsystems and network links in one command:
 ```bash
-python test_e2e.py
+python test_rotator_e2e.py
 ```
-If all 9 stages output green checkmarks, the entire ecosystem is operating in optimal health.
+Validates backend database, rotator health, dynamic session, biometrics, facial verification, and atomic balance deduction.

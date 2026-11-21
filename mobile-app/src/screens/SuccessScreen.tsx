@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, ShieldCheck, ArrowRight, Receipt, Banknote, RefreshCw, Sparkles, Building2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { CheckCircle2, ArrowRight, Receipt, Banknote, RefreshCw, Zap } from 'lucide-react';
 import { VerificationResult, ScannedSession, MobileUser } from '../types';
 import { getApiBase } from '../services/api';
 
@@ -7,6 +8,8 @@ interface SuccessScreenProps {
   result: VerificationResult;
   session?: ScannedSession | null;
   user?: MobileUser | null;
+  prestagedAmount?: number | null;
+  onRefreshBalance?: () => void;
   onFinish: () => void;
 }
 
@@ -22,10 +25,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({
   result,
   session,
   user,
+  prestagedAmount,
+  onRefreshBalance,
   onFinish,
 }) => {
   const [dispensedTx, setDispensedTx] = useState<CompletedTransaction | null>(null);
-  const [waitingForKiosk, setWaitingForKiosk] = useState<boolean>(true);
 
   // Poll ATM session to detect when cash is dispensed at the kiosk
   useEffect(() => {
@@ -41,20 +45,19 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({
         const data = await res.json();
 
         if (data.status === 'COMPLETED') {
-          // Cash dispense finished at ATM kiosk
           if (isSubscribed) {
             setDispensedTx({
               id: data.transaction?.id || `TXN-${session.sessionId.slice(0, 8).toUpperCase()}`,
-              amount: data.transaction?.amount || 1000,
-              remaining_balance: data.transaction?.remaining_balance ?? (user ? user.account_balance - 1000 : 24000.23),
+              amount: data.transaction?.amount || prestagedAmount || 1000,
+              remaining_balance: data.transaction?.remaining_balance ?? (user ? user.account_balance - (prestagedAmount || 1000) : 24000.23),
               timestamp: data.transaction?.created_at || new Date().toISOString(),
               terminal: session.kioskId || 'KIOSK-EAST-01',
             });
-            setWaitingForKiosk(false);
+            if (onRefreshBalance) onRefreshBalance();
           }
         }
       } catch {
-        // Silently retry on next tick
+        // Silently retry
       }
     }, 1200);
 
@@ -62,159 +65,194 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [session?.sessionId, session?.kioskId, user]);
+  }, [session?.sessionId, session?.kioskId, user, prestagedAmount, onRefreshBalance]);
+
+  const handleFinish = () => {
+    if (onRefreshBalance) onRefreshBalance();
+    onFinish();
+  };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-6 bg-white text-slate-900 text-center animate-fade-in select-none">
-      {/* If cash was dispensed at the ATM, show the Transaction Successful receipt screen */}
+    <div className="flex-1 flex flex-col justify-between p-6 bg-[#F5F2EB] text-[#171715] text-center select-none font-sans relative overflow-hidden antialiased">
       {dispensedTx ? (
         <>
-          <div className="pt-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-300 flex items-center justify-center text-emerald-600 mx-auto mb-3 shadow-sm animate-bounce">
+          <div className="pt-2 relative z-10">
+            {/* Swiss Private Banking Emerald Verification Seal */}
+            <motion.div
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+              className="w-16 h-16 rounded-full bg-[#EBF5F0] border-2 border-[#CDE5D9] flex items-center justify-center text-[#155E43] mx-auto mb-3 shadow-warm-xs"
+            >
               <CheckCircle2 className="w-9 h-9 stroke-[2.5]" />
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200 mb-1">
-              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Cash Dispensed Successfully</span>
-            </div>
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
-              Transaction Successful
+            </motion.div>
+
+            {prestagedAmount && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4EFE4] text-[#B5935A] text-[10px] font-mono tracking-wider font-semibold border border-[#E2D4BC] mb-2 uppercase">
+                <Zap className="w-3.5 h-3.5 text-[#B5935A] fill-[#B5935A]" />
+                <span>Express Pre-Staged Dispense Settled</span>
+              </div>
+            )}
+
+            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-[#171715] tracking-tight">
+              Banknotes Dispensed
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Please take your cash from the ATM tray.
+            <p className="text-xs text-[#666156] mt-1 font-sans">
+              Please collect your cash from the concierge terminal tray.
             </p>
           </div>
 
-          {/* Digital Receipt Card */}
-          <div className="my-auto bg-slate-50 border border-slate-200 rounded-2xl p-5 text-left shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
+          {/* Swiss Private Banking Advice Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="my-auto bg-[#FCFBF8] border border-[#E6E0D4] rounded-2xl p-5 text-left shadow-warm-md relative z-10"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#E6E0D4]">
               <div className="flex items-center space-x-2">
-                <Receipt className="w-4 h-4 text-slate-600" />
-                <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">ATM Cash Receipt</span>
+                <Receipt className="w-4 h-4 text-[#B5935A]" />
+                <span className="font-serif font-semibold text-[#171715] text-xs uppercase tracking-wider">Debit Advice</span>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                COMPLETED
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#EBF5F0] text-[#155E43] border border-[#CDE5D9]">
+                SETTLED
               </span>
             </div>
 
-            <div className="py-4 text-center border-b border-slate-200/80">
-              <p className="text-[11px] uppercase font-bold text-slate-400">Amount Dispensed</p>
-              <p className="text-3xl font-mono font-extrabold text-slate-900 mt-0.5">
+            <div className="py-4 text-center border-b border-[#E6E0D4]">
+              <p className="text-[10px] uppercase font-mono tracking-[0.14em] font-semibold text-[#9A9386]">Dispensed Amount</p>
+              <p className="text-3xl font-serif font-semibold text-[#171715] mt-0.5 tabular-nums">
                 ₹{dispensedTx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-[10px] text-slate-500 font-medium">Indian Rupees (INR)</p>
+              <p className="text-[10px] text-[#666156] font-mono">Indian Rupees (INR)</p>
             </div>
 
-            <div className="pt-3 space-y-2 text-xs font-mono text-slate-600">
+            <div className="pt-3 space-y-2 text-xs font-mono text-[#666156]">
               <div className="flex justify-between">
-                <span>Account Holder:</span>
-                <span className="font-semibold text-slate-900">{user?.full_name || 'Sujay Lokhande'}</span>
+                <span className="text-[#9A9386]">Account Holder:</span>
+                <span className="font-semibold text-[#171715] font-sans">{user?.full_name || 'Private Client'}</span>
               </div>
               <div className="flex justify-between">
-                <span>ATM Terminal:</span>
-                <span className="font-semibold text-slate-800">{dispensedTx.terminal}</span>
+                <span className="text-[#9A9386]">Terminal ID:</span>
+                <span className="font-semibold text-[#171715]">{dispensedTx.terminal}</span>
               </div>
               <div className="flex justify-between">
-                <span>Transaction ID:</span>
-                <span className="text-slate-800">{dispensedTx.id.slice(0, 16)}...</span>
+                <span className="text-[#9A9386]">Transaction ID:</span>
+                <span className="text-[#666156]">{dispensedTx.id.slice(0, 16)}...</span>
               </div>
               <div className="flex justify-between">
-                <span>Remaining Balance:</span>
-                <span className="font-bold text-slate-900">
+                <span className="text-[#9A9386]">Updated Reserves:</span>
+                <span className="font-bold text-[#155E43] tabular-nums">
                   ₹{dispensedTx.remaining_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Date & Time:</span>
-                <span className="text-[11px] text-slate-500">{new Date(dispensedTx.timestamp).toLocaleString()}</span>
+                <span className="text-[#9A9386]">Timestamp:</span>
+                <span className="text-[11px] text-[#666156]">{new Date(dispensedTx.timestamp).toLocaleTimeString()}</span>
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="pt-2">
-            <button
+          <div className="pt-2 relative z-10">
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               type="button"
-              onClick={onFinish}
-              className="w-full py-3.5 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-bold text-xs uppercase tracking-wider shadow-md transition flex items-center justify-center gap-2"
+              onClick={handleFinish}
+              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#102A22] to-[#193D32] hover:from-[#193D32] hover:to-[#225042] text-[#FAF8F3] font-sans font-medium text-xs uppercase tracking-wider shadow-warm-xs transition flex items-center justify-center gap-2 border border-[#255243]/50"
             >
-              <span>Back to Home</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              <span>Return to Portfolio</span>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </motion.button>
           </div>
         </>
       ) : (
         /* While waiting for user to select amount on ATM kiosk */
         <>
-          <div className="pt-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto mb-3">
-              <CheckCircle2 className="w-9 h-9" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900">
+          <div className="pt-2 relative z-10">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', damping: 15 }}
+              className="w-16 h-16 rounded-full bg-[#EBF5F0] border border-[#CDE5D9] flex items-center justify-center text-[#155E43] mx-auto mb-3 shadow-warm-xs"
+            >
+              <CheckCircle2 className="w-9 h-9 stroke-[2.2]" />
+            </motion.div>
+
+            {prestagedAmount && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4EFE4] text-[#B5935A] text-[10px] font-mono border border-[#E2D4BC] mb-2 uppercase font-semibold">
+                <Zap className="w-3.5 h-3.5 text-[#B5935A] fill-[#B5935A]" />
+                <span>Express ₹{prestagedAmount.toLocaleString()} Auto-Dispensing</span>
+              </div>
+            )}
+
+            <h2 className="text-2xl font-serif font-semibold text-[#171715]">
               Authorization Approved
             </h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-              Your biometric identity was verified. Look at the ATM screen to choose your withdrawal amount.
+            <p className="text-xs text-[#666156] mt-1 max-w-xs mx-auto font-sans">
+              Your biometric identity was confirmed. Look at the concierge terminal screen to complete cash dispensing.
             </p>
           </div>
 
           {/* Verification Details */}
-          <div className="my-auto bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2.5 text-xs">
-            <div className="flex justify-between border-b border-slate-200/80 pb-2">
-              <span className="text-slate-500">ATM Terminal:</span>
-              <span className="font-semibold text-slate-800 font-mono">{session?.kioskId || 'KIOSK-EAST-01'}</span>
+          <div className="my-auto bg-[#FCFBF8] border border-[#E6E0D4] rounded-2xl p-5 text-left space-y-2.5 text-xs relative z-10 shadow-warm-xs">
+            <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+              <span className="text-[#9A9386]">Terminal ID:</span>
+              <span className="font-semibold text-[#171715] font-mono">{session?.kioskId || 'KIOSK-EAST-01'}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-200/80 pb-2">
-              <span className="text-slate-500">AI Match Confidence:</span>
-              <span className="font-bold text-emerald-600 font-mono">
-                {Math.round(result.confidence * 100)}% Match
+            <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+              <span className="text-[#9A9386]">Confidence Match:</span>
+              <span className="font-bold text-[#155E43] font-mono tabular-nums">
+                {Math.round(result.confidence * 100)}% Verified
               </span>
             </div>
-            <div className="flex justify-between border-b border-slate-200/80 pb-2">
-              <span className="text-slate-500">Liveness Check:</span>
-              <span className="font-semibold text-emerald-600 font-mono">PASSED</span>
+            <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+              <span className="text-[#9A9386]">Liveness Check:</span>
+              <span className="font-semibold text-[#155E43] font-mono">PASSED</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Verification Engine:</span>
-              <span className="font-medium text-slate-700 font-mono">Google Gemini Vision</span>
+              <span className="text-[#9A9386]">Verification Enclave:</span>
+              <span className="font-medium text-[#171715] font-mono flex items-center gap-1">
+                Sentinel Cryptographic Enclave
+              </span>
             </div>
 
             {/* Waiting for Cash Dispense Pill */}
-            <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+            <div className="mt-3 p-3 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-xs flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-[#B5935A] animate-spin shrink-0" />
               <div className="text-left">
-                <p className="font-bold">Awaiting Cash Dispense on ATM</p>
-                <p className="text-[11px] text-blue-700">Select withdrawal amount on the kiosk screen.</p>
+                <p className="font-semibold text-[#171715]">Awaiting Dispense on Terminal</p>
+                <p className="text-[11px] text-[#666156]">Banknotes emerging at terminal tray.</p>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 flex flex-col gap-2">
+          <div className="pt-2 flex flex-col gap-2 relative z-10">
             <button
               type="button"
               onClick={() => {
-                // Allows immediate receipt preview if user wants
                 setDispensedTx({
                   id: `TXN-${(session?.sessionId || '101').slice(0, 8).toUpperCase()}`,
-                  amount: 1000,
-                  remaining_balance: user ? user.account_balance - 1000 : 24000.23,
+                  amount: prestagedAmount || 1000,
+                  remaining_balance: user ? user.account_balance - (prestagedAmount || 1000) : 24000.23,
                   timestamp: new Date().toISOString(),
                   terminal: session?.kioskId || 'KIOSK-EAST-01',
                 });
+                if (onRefreshBalance) onRefreshBalance();
               }}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs border border-slate-200 transition flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 px-4 rounded-xl bg-[#FCFBF8] hover:bg-white text-[#171715] font-medium text-xs border border-[#E6E0D4] transition flex items-center justify-center gap-1.5 shadow-warm-xs"
             >
-              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Simulate Cash Dispense (₹1,000)</span>
+              <Banknote className="w-3.5 h-3.5 text-[#B5935A]" />
+              <span>Simulate Dispense (₹{prestagedAmount || 1000})</span>
             </button>
 
-            <button
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               type="button"
-              onClick={onFinish}
-              className="w-full py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs shadow-md transition flex items-center justify-center gap-2"
+              onClick={handleFinish}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#102A22] to-[#193D32] hover:from-[#193D32] hover:to-[#225042] text-[#FAF8F3] font-sans font-medium text-xs uppercase tracking-wider shadow-warm-xs transition flex items-center justify-center gap-2 border border-[#255243]/50"
             >
               <span>Done</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            </motion.button>
           </div>
         </>
       )}

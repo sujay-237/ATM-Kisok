@@ -1,11 +1,11 @@
 import hashlib
+import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_db
 from app.models import utc_now
-import uuid
 from app.schemas import (
     UserLoginRequest,
     UserRegisterRequest,
@@ -13,6 +13,7 @@ from app.schemas import (
     UserResponse,
     UpdateReferencePhotoRequest,
 )
+from app.websocket_manager import ws_manager
 
 router = APIRouter(prefix="/api", tags=["Users & Authentication"])
 
@@ -32,6 +33,8 @@ def doc_to_user_response(doc: dict) -> UserResponse:
         role=doc.get("role", "user"),
         account_balance=float(doc.get("account_balance") if doc.get("account_balance") is not None else doc.get("balance", 0.0)),
         is_active=doc.get("is_active", True),
+        account_frozen_duress=doc.get("account_frozen_duress", False),
+        duress_pin=doc.get("duress_pin"),
         has_reference_selfie=bool(selfie and len(selfie) > 20),
         created_at=doc["created_at"],
     )
@@ -41,7 +44,7 @@ def doc_to_user_response(doc: dict) -> UserResponse:
 async def register(payload: UserRegisterRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Registers a new bank account holder with mandatory selfie enrollment.
-    This selfie serves as the biometric ground-truth baseline for ATM dynamic QR + face verification.
+    Automatically generates a Silent Duress PIN (defaults to reversed PIN if not specified).
     """
     username = payload.username.strip().lower()
     email = payload.email.strip().lower()
@@ -73,13 +76,19 @@ async def register(payload: UserRegisterRequest, db: AsyncIOMotorDatabase = Depe
     elif payload.account_balance is not None:
         deposit_amt = float(payload.account_balance)
 
+    # Duress PIN: explicit or reversed PIN
+    clean_pin = payload.pin.strip()
+    duress_pin = (payload.duress_pin or clean_pin[::-1]).strip()
+
     user_doc = {
         "id": user_id,
         "username": username,
         "email": email,
         "phone": phone,
         "full_name": payload.full_name.strip(),
-        "hashed_pin": hash_pin(payload.pin),
+        "hashed_pin": hash_pin(clean_pin),
+        "duress_pin": duress_pin,
+        "account_frozen_duress": False,
         "account_balance": deposit_amt,
         "reference_selfie": payload.reference_selfie_base64.strip(),
         "role": "user",
@@ -98,7 +107,7 @@ async def register(payload: UserRegisterRequest, db: AsyncIOMotorDatabase = Depe
 
 @router.post("/auth/login", response_model=LoginResponse)
 async def login(payload: UserLoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
-    user = await db["users"].find_one({"username": payload.username.strip()})
+    user = await db["users"].find_one({"username": payload.username.strip().lower()})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or PIN")
 
@@ -170,4 +179,39 @@ async def update_reference_photo(
         "message": "Reference selfie updated successfully in MongoDB",
         "user_id": user["id"],
         "has_reference_selfie": True,
+    }
+
+
+@router.post("/admin/users/{user_id}/unfreeze")
+async def admin_unfreeze_user(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Administrative Endpoint: Acknowledges safety verification and unlocks/unfreezes
+    an account that was placed into silent duress lockdown.
+    """
+    user = await db["users"].find_one(
+        {"$or": [{"id": user_id}, {"username": user_id}]}
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = utc_now()
+    await db["users"].update_one(
+        {"id": user["id"]},
+        {"$set": {"account_frozen_duress": False, "updated_at": now}}
+    )
+
+    user["account_frozen_duress"] = False
+
+    # Broadcast event to Admin Dashboard
+    await ws_manager.broadcast_admin({
+        "type": "USER_UNFROZEN",
+        "user_id": user["id"],
+        "user_name": user["full_name"],
+        "timestamp": now.isoformat(),
+        "message": f"Security Hold lifted for {user['full_name']} by Administrator.",
+    })
+
+    return {
+        "message": f"User account for {user['full_name']} successfully unfrozen.",
+        "user": doc_to_user_response(user),
     }

@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { MobileUser, VerificationResult, DelegationItem } from '../types';
 
 // Default LAN IP of development host machine
-const DEFAULT_HOST_IP = '10.201.91.55';
+const DEFAULT_HOST_IP = '10.249.127.55';
 
 export function getDefaultApiBase(): string {
   if (typeof window !== 'undefined') {
@@ -109,7 +109,7 @@ export const mobileApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...data,
-        initial_deposit: data.account_balance || data.initial_deposit || 1000,
+        account_balance: data.account_balance || data.initial_deposit || 1000,
       }),
     });
     if (!res.ok) {
@@ -125,14 +125,24 @@ export const mobileApi = {
     return res.json();
   },
 
-  async scanSessionQR(sessionId: string, userId: string, deviceInfo: string = 'Mobile App (Expo Client)'): Promise<any> {
+  async scanSessionQR(
+    sessionId: string,
+    userId: string,
+    deviceInfo: string = 'Mobile App (Expo Client)',
+    prestagedAmount?: number | null
+  ): Promise<any> {
+    const payload: Record<string, any> = {
+      user_id: userId,
+      device_info: deviceInfo,
+    };
+    if (prestagedAmount !== undefined && prestagedAmount !== null) {
+      payload.prestaged_amount = prestagedAmount;
+    }
+
     const res = await fetch(`${getApiBase()}/api/session/${sessionId}/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: userId,
-        device_info: deviceInfo,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -141,7 +151,12 @@ export const mobileApi = {
     return res.json();
   },
 
-  async verifyLocalBiometrics(sessionId: string, userId: string, biometricType: string = 'FINGERPRINT'): Promise<any> {
+  async verifyLocalBiometrics(
+    sessionId: string,
+    userId: string,
+    biometricType: string = 'FINGERPRINT',
+    isDuress: boolean = false
+  ): Promise<any> {
     const res = await fetch(`${getApiBase()}/api/session/${sessionId}/biometric-auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -149,6 +164,7 @@ export const mobileApi = {
         user_id: userId,
         biometric_type: biometricType,
         local_auth_passed: true,
+        is_duress: isDuress,
       }),
     });
     if (!res.ok) {
@@ -158,16 +174,28 @@ export const mobileApi = {
     return res.json();
   },
 
-  async verifySelfie(sessionId: string, userId: string, liveSelfieBase64: string): Promise<VerificationResult> {
+  async verifySelfie(
+    sessionId: string,
+    userId: string,
+    liveSelfieBase64: string,
+    prestagedAmount?: number | null,
+    isDuress: boolean = false
+  ): Promise<VerificationResult> {
+    const payload: Record<string, any> = {
+      session_id: sessionId,
+      user_id: userId,
+      live_selfie_base64: liveSelfieBase64,
+      device_info: 'Mobile Front Camera',
+      is_duress: isDuress,
+    };
+    if (prestagedAmount !== undefined && prestagedAmount !== null) {
+      payload.prestaged_amount = prestagedAmount;
+    }
+
     const res = await fetch(`${getApiBase()}/api/verify-selfie`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: sessionId,
-        user_id: userId,
-        live_selfie_base64: liveSelfieBase64,
-        device_info: 'Expo Front Camera',
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json();

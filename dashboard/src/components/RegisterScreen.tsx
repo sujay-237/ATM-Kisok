@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, CheckCircle2, AlertCircle, RefreshCw, ShieldCheck, UserCheck, ArrowRight, Lock } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Camera, Upload, CheckCircle2, AlertCircle, RefreshCw, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
 import { User } from '../types';
 
 interface RegisterScreenProps {
@@ -29,7 +30,6 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Stop webcam stream when unmounting or deactivated
   const stopWebcam = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -58,9 +58,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
         videoRef.current.play();
       }
       setIsWebcamActive(true);
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setCameraError('Unable to access webcam. Please verify camera permissions or upload a photo file.');
+    } catch {
+      setCameraError('Unable to access camera. Please verify permissions or upload a portrait photo.');
       setIsWebcamActive(false);
     }
   };
@@ -102,14 +101,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
     e.preventDefault();
     setError(null);
 
-    // Form Validations
     if (!fullName.trim() || !username.trim() || !email.trim() || !phone.trim() || !pin) {
-      setError('Please fill in all required fields.');
+      setError('Please fill in all required private client fields.');
       return;
     }
 
     if (!/^\d{4}$/.test(pin)) {
-      setError('PIN must be exactly 4 numeric digits.');
+      setError('Security PIN must be exactly 4 numeric digits.');
       return;
     }
 
@@ -119,13 +117,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
     }
 
     if (!selfieBase64) {
-      setError('A facial reference selfie is strictly required for biometric registration.');
+      setError('A facial reference portrait is strictly required for biometric terminal custody.');
       return;
     }
 
     const balanceNum = parseFloat(initialDeposit);
     if (isNaN(balanceNum) || balanceNum < 0) {
-      setError('Initial deposit must be a valid positive amount.');
+      setError('Initial reserve deposit must be a valid positive amount.');
       return;
     }
 
@@ -160,74 +158,84 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
 
   if (successData) {
     return (
-      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl p-8 text-center animate-fade-in">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto mb-4">
-          <CheckCircle2 className="w-9 h-9" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-xl mx-auto luxury-card rounded-2xl p-8 text-center"
+      >
+        <div className="w-16 h-16 rounded-full bg-[#EBF5F0] border border-[#C2E2D3] flex items-center justify-center text-[#155E43] mx-auto mb-4">
+          <CheckCircle2 className="w-9 h-9 stroke-[1.8]" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">Account Created Successfully</h2>
-        <p className="text-sm text-slate-600 mt-2">
-          Welcome to Sentinel Bank, <strong className="text-slate-900">{successData.full_name}</strong>.
-          Your cardless biometric profile is now active and ready for ATM transactions.
+        <h2 className="text-3xl font-serif font-semibold text-[#171715] tracking-tight">Account Enrolled Successfully</h2>
+        <p className="text-sm text-[#666156] mt-2">
+          Welcome to Sentinel Private Bank, <strong className="text-[#102A22]">{successData.full_name}</strong>.
+          Your private client profile and biometric baseline are now active for cardless terminal access.
         </p>
 
-        <div className="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-left font-sans space-y-2 text-sm">
-          <div className="flex justify-between border-b border-slate-200/80 pb-2">
-            <span className="text-slate-500">Username:</span>
-            <span className="font-semibold text-slate-900 font-mono">@{successData.username}</span>
+        <div className="mt-6 p-4 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-left font-sans space-y-2 text-sm">
+          <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+            <span className="text-[#666156]">Client ID:</span>
+            <span className="font-semibold text-[#171715] font-mono">@{successData.username}</span>
           </div>
-          <div className="flex justify-between border-b border-slate-200/80 pb-2">
-            <span className="text-slate-500">Registered Phone:</span>
-            <span className="font-semibold text-slate-900 font-mono">{successData.phone}</span>
+          <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+            <span className="text-[#666156]">Registered Mobile:</span>
+            <span className="font-semibold text-[#171715] font-mono">{successData.phone}</span>
           </div>
-          <div className="flex justify-between border-b border-slate-200/80 pb-2">
-            <span className="text-slate-500">Opening Balance:</span>
-            <span className="font-bold text-emerald-600 font-mono">${successData.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          <div className="flex justify-between border-b border-[#E6E0D4] pb-2">
+            <span className="text-[#666156]">Opening Reserve:</span>
+            <span className="font-bold text-[#102A22] font-serif text-base tabular-nums">
+              ₹{successData.account_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500">Biometric Reference:</span>
-            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 text-xs">
-              <ShieldCheck className="w-3.5 h-3.5" /> Enrolled in Gemini Vision
+            <span className="text-[#666156]">Biometric Baseline:</span>
+            <span className="inline-flex items-center gap-1 font-semibold text-[#155E43] text-xs font-mono">
+              <ShieldCheck className="w-3.5 h-3.5" /> Enrolled & Verified
             </span>
           </div>
         </div>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           onClick={() => onSuccess(successData)}
-          className="w-full mt-6 py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
+          className="w-full mt-6 py-3.5 px-4 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-sm"
         >
           <span>Open Account Dashboard</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
+          <ArrowRight className="w-4 h-4 text-[#B5935A]" />
+        </motion.button>
+      </motion.div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-lg p-8 animate-fade-in">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-2xl mx-auto luxury-card rounded-2xl p-8"
+    >
       {/* Header */}
-      <div className="border-b border-slate-100 pb-5 mb-6 text-center">
-        <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 mx-auto mb-3">
-          <UserCheck className="w-6 h-6" />
+      <div className="border-b border-[#E6E0D4] pb-5 mb-6 text-center">
+        <div className="w-12 h-12 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A] mx-auto mb-3">
+          <UserCheck className="w-6 h-6 stroke-[1.8]" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">Open a New Bank Account</h2>
-        <p className="text-sm text-slate-600 mt-1">
-          Register with your identity and a biometric facial baseline for cardless ATM access.
+        <h2 className="text-3xl font-serif font-semibold text-[#171715] tracking-tight">Open a Private Client Account</h2>
+        <p className="text-xs text-[#666156] mt-1.5 leading-relaxed">
+          Enroll with your legal identity and a biometric facial baseline for cardless concierge terminal access.
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
+        <div className="mb-6 p-4 rounded-xl bg-[#FDF2F4] border border-[#F8CBD4] text-[#9F1239] text-sm flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#9F1239]" />
           <span>{error}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Personal Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Full Legal Name <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Full Legal Name <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="text"
@@ -235,27 +243,27 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
               placeholder="e.g. Johnathan Smith"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Username <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Client ID / Username <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="text"
               required
-              placeholder="e.g. jsmith"
+              placeholder="jsmith"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm font-mono focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Email Address <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Email Address <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="email"
@@ -263,30 +271,29 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
               placeholder="john@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Phone Number <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Mobile Phone <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="tel"
               required
-              placeholder="+1 (555) 019-2834"
+              placeholder="+91 9876543210"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm font-mono focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
         </div>
 
-        {/* Security & Financial */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-[#E6E0D4]">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              4-Digit PIN <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              4-Digit PIN <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="password"
@@ -295,13 +302,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
               placeholder="••••"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm text-center font-mono tracking-widest focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm text-center font-mono tracking-widest focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Confirm PIN <span className="text-rose-500">*</span>
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Confirm PIN <span className="text-[#9F1239]">*</span>
             </label>
             <input
               type="password"
@@ -310,116 +317,115 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
               placeholder="••••"
               value={confirmPin}
               onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm text-center font-mono tracking-widest focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm text-center font-mono tracking-widest focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
-              Initial Deposit ($)
+            <label className="block text-xs font-mono font-medium text-[#666156] uppercase tracking-wider mb-1.5">
+              Initial Reserve (₹)
             </label>
             <input
               type="number"
               min="0"
-              step="50"
+              step="500"
               placeholder="1000"
               value={initialDeposit}
               onChange={(e) => setInitialDeposit(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] text-[#171715] text-sm font-mono focus:outline-none focus:border-[#B5935A] transition"
             />
           </div>
         </div>
 
         {/* Biometric Reference Selfie Section */}
-        <div className="pt-4 border-t border-slate-100">
+        <div className="pt-4 border-t border-[#E6E0D4]">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-blue-700" />
-                Facial Biometric Enrollment
-                <span className="text-rose-500">*</span>
+              <h3 className="text-base font-serif font-semibold text-[#171715] flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-[#B5935A]" />
+                Facial Biometric Enrollment Baseline
+                <span className="text-[#9F1239]">*</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Upload or capture a clean frontal selfie. This will be stored securely and matched by Gemini Vision during cardless ATM cash withdrawals.
+              <p className="text-xs text-[#666156] mt-0.5">
+                Capture or upload a clean frontal portrait. Stored with end-to-end cryptographic custody for cardless terminal verification.
               </p>
             </div>
           </div>
 
           {cameraError && (
-            <div className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <div className="mb-3 p-3 rounded-lg bg-[#FDF6E7] border border-[#F5DEB3] text-[#9A6700] text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-[#9A6700]" />
               <span>{cameraError}</span>
             </div>
           )}
 
-          {/* Camera / Preview Area */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-6">
-            {/* Viewport Box */}
-            <div className="relative w-44 h-44 rounded-xl bg-slate-200 border-2 border-dashed border-slate-300 overflow-hidden flex items-center justify-center shrink-0">
+          <div className="bg-[#F5F2EB] border border-[#E6E0D4] rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-6">
+            <div className="relative w-40 h-40 rounded-full bg-[#FCFBF8] border-2 border-[#B5935A] overflow-hidden flex items-center justify-center shrink-0 shadow-sm p-0.5">
               {isWebcamActive ? (
                 <video
                   ref={videoRef}
                   playsInline
                   autoPlay
                   muted
-                  className="w-full h-full object-cover transform -scale-x-100"
+                  className="w-full h-full object-cover rounded-full transform -scale-x-100"
                 />
               ) : selfieBase64 ? (
-                <img src={selfieBase64} alt="Enrolled Selfie" className="w-full h-full object-cover" />
+                <img src={selfieBase64} alt="Enrolled Baseline" className="w-full h-full object-cover rounded-full" />
               ) : (
-                <div className="text-center p-3 text-slate-400 text-xs">
-                  <Camera className="w-8 h-8 mx-auto mb-1 text-slate-300" />
-                  <span>No photo taken</span>
+                <div className="text-center p-3 text-[#9A9386] text-xs">
+                  <Camera className="w-8 h-8 mx-auto mb-1 text-[#9A9386]" />
+                  <span>No photo</span>
                 </div>
               )}
 
-              {/* Status Badge */}
               {selfieBase64 && !isWebcamActive && (
-                <span className="absolute bottom-2 right-2 bg-emerald-600 text-white rounded-full p-1 shadow">
+                <span className="absolute bottom-2 right-2 bg-[#155E43] text-white rounded-full p-1 shadow">
                   <CheckCircle2 className="w-4 h-4" />
                 </span>
               )}
             </div>
 
-            {/* Controls */}
             <div className="flex-1 space-y-3 w-full">
               {isWebcamActive ? (
                 <div className="flex flex-col gap-2">
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={captureWebcamSelfie}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition shadow-sm flex items-center justify-center gap-2"
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>Capture Snapshot</span>
-                  </button>
+                    <Camera className="w-4 h-4 text-[#B5935A]" />
+                    <span>Capture Portrait</span>
+                  </motion.button>
                   <button
                     type="button"
                     onClick={stopWebcam}
-                    className="w-full py-2 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition"
+                    className="w-full py-2 px-4 rounded-xl bg-white border border-[#E6E0D4] text-[#666156] font-medium text-xs transition"
                   >
                     Cancel Webcam
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={startWebcam}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs shadow-sm transition flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-sm"
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>Take Selfie with Camera</span>
-                  </button>
+                    <Camera className="w-4 h-4 text-[#B5935A]" />
+                    <span>Use Camera</span>
+                  </motion.button>
 
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs transition flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[#FCFBF8] hover:bg-[#F5F2EB] text-[#171715] border border-[#E6E0D4] font-medium text-xs transition flex items-center justify-center gap-2"
                   >
-                    <Upload className="w-4 h-4 text-slate-500" />
-                    <span>Upload Image File</span>
-                  </button>
+                    <Upload className="w-4 h-4 text-[#666156]" />
+                    <span>Upload Portrait</span>
+                  </motion.button>
 
                   <input
                     ref={fileInputRef}
@@ -432,54 +438,55 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSuccess, onGoT
               )}
 
               {selfieBase64 && !isWebcamActive && (
-                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
-                  <span className="font-medium">Selfie baseline captured successfully!</span>
+                <div className="p-2.5 rounded-lg bg-[#EBF5F0] border border-[#C2E2D3] text-[#155E43] text-xs flex items-center justify-between font-mono">
+                  <span>Portrait baseline captured successfully!</span>
                   <button
                     type="button"
                     onClick={() => setSelfieBase64(null)}
-                    className="text-rose-600 hover:underline font-semibold ml-2"
+                    className="text-[#9F1239] hover:underline font-semibold ml-2"
                   >
                     Remove
                   </button>
                 </div>
               )}
 
-              <p className="text-[11px] text-slate-500">
-                Tip: Face the camera directly in good lighting. Avoid sunglasses, heavy shadows, or face masks.
+              <p className="text-[11px] text-[#9A9386]">
+                Guideline: Face camera directly in balanced lighting. Avoid sunglasses, heavy hats, or facial coverings.
               </p>
             </div>
           </div>
         </div>
 
         {/* Submit Button */}
-        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="pt-4 border-t border-[#E6E0D4] flex flex-col sm:flex-row items-center justify-between gap-4">
           <button
             type="button"
             onClick={onGoToLogin}
-            className="text-sm font-medium text-blue-700 hover:text-blue-800"
+            className="text-sm font-medium text-[#666156] hover:text-[#171715] transition"
           >
-            Already have an account? Sign in
+            Already a private client? Sign in
           </button>
 
-          <button
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
-            className="w-full sm:w-auto px-8 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#102A22] hover:bg-[#193D32] text-[#FAF8F3] font-medium text-xs tracking-wider uppercase shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Registering Account...</span>
+                <RefreshCw className="w-4 h-4 animate-spin text-[#B5935A]" />
+                <span>Enrolling Client Account...</span>
               </>
             ) : (
               <>
-                <ShieldCheck className="w-4 h-4" />
-                <span>Create Bank Account</span>
+                <ShieldCheck className="w-4 h-4 text-[#B5935A]" />
+                <span>Open Private Client Account</span>
               </>
             )}
-          </button>
+          </motion.button>
         </div>
       </form>
-    </div>
+    </motion.div>
   );
 };
