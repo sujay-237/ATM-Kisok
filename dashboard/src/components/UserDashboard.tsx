@@ -27,6 +27,28 @@ interface UserDashboardProps {
   onLogout: () => void;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
 // 60fps Native Rolling Counter for Luxury Balance Transitions
 const AnimatedRollingCounter: React.FC<{ value: number; show: boolean }> = ({ value, show }) => {
   const [displayValue, setDisplayValue] = useState(value);
@@ -152,19 +174,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-7 text-[#171715] font-sans">
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-7 text-[#171715] font-sans"
+    >
       {/* Duress Freeze Warning on User Dashboard if active */}
       {currentUser.account_frozen_duress && (
-        <div className="p-4 rounded-2xl bg-[#FDF2F4] border border-[#F8CBD4] text-[#9F1239] flex items-center gap-3.5 shadow-sm">
+        <motion.div variants={itemVariants} className="p-4 rounded-2xl bg-[#FDF2F4] border border-[#F8CBD4] text-[#9F1239] flex items-center gap-3.5 shadow-sm">
           <Flame className="w-5 h-5 text-[#9F1239] shrink-0" />
           <div className="text-xs">
             <span className="font-semibold">Security Hold Active:</span> A silent duress panic withdrawal was recorded on this account. ATM withdrawals are temporarily restricted. Please contact your private client advisor or security officer to verify your safety.
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Top Editorial Account Strip */}
-      <div className="luxury-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-[11px] font-mono tracking-widest text-[#B5935A] uppercase font-medium">
             PRIVATE WEALTH PORTFOLIO • PRIMARY RESERVE
@@ -198,10 +225,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <span>Sign Out</span>
           </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Account Balance & Biometric Identity Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Signature Heritage Wealth Card (Deep Forest Green Satin) */}
         <div className="md:col-span-2 rounded-2xl p-7 heritage-forest-card flex flex-col justify-between relative overflow-hidden group">
           <div className="relative z-10">
@@ -282,10 +309,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             Update Reference Portrait
           </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Temporary Delegations Section (Only 1 primary CTA button) */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
@@ -382,10 +409,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             })}
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Transaction History Section */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
@@ -452,7 +479,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </tbody>
           </table>
         </div>
-      </div>
+      </motion.div>
 
       {/* Modals */}
       <DelegationModal
@@ -477,6 +504,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           onRefreshUser();
         }}
       />
-    </div>
+    </motion.div>
   );
 };

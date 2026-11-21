@@ -55,7 +55,11 @@ exit /b 0
 
 :LOCAL_BUILD
 echo Found Android SDK at %ANDROID_HOME%
-echo Running Gradle assembleDebug...
+if exist "C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot" (
+    set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot"
+    set "PATH=C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot\bin;%PATH%"
+)
+echo Running Gradle assembleDebug with Java at %JAVA_HOME%...
 cd android
 call gradlew.bat assembleDebug
 if %errorlevel% equ 0 (

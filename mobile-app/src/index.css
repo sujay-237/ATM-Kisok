@@ -9,8 +9,8 @@
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-image: radial-gradient(rgba(24, 34, 28, 0.025) 1px, transparent 0);
-    background-size: 20px 20px;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.022'/%3E%3C/svg%3E");
+    background-repeat: repeat;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -57,14 +57,14 @@
 .luxury-card {
   background-color: #FCFBF8;
   border: 1px solid #E6E0D4;
-  box-shadow: 0 10px 28px -10px rgba(24, 34, 28, 0.06);
+  box-shadow: 0 10px 28px -10px rgba(24, 34, 28, 0.05), 0 2px 6px rgba(24, 34, 28, 0.02);
 }
 
 .heritage-forest-card {
   background: linear-gradient(135deg, #102A22 0%, #15382E 50%, #193D32 100%);
   color: #FAF8F3;
   border: 1px solid rgba(181, 147, 90, 0.35);
-  box-shadow: 0 16px 36px -12px rgba(16, 42, 34, 0.28);
+  box-shadow: 0 16px 36px -12px rgba(16, 42, 34, 0.28), 0 4px 12px rgba(16, 42, 34, 0.12);
 }
 
 ::-webkit-scrollbar {
@@ -74,6 +74,6 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D4CBBC;
+  background: #D8D2C5;
   border-radius: 9999px;
 }

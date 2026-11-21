@@ -9,8 +9,8 @@
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-image: radial-gradient(rgba(24, 34, 28, 0.025) 1px, transparent 0);
-    background-size: 20px 20px;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.022'/%3E%3C/svg%3E");
+    background-repeat: repeat;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -29,16 +29,16 @@
 .luxury-card {
   background-color: #FCFBF8;
   border: 1px solid #E6E0D4;
-  box-shadow: 0 12px 32px -12px rgba(24, 34, 28, 0.07);
+  box-shadow: 0 10px 30px -10px rgba(24, 34, 28, 0.05), 0 2px 6px rgba(24, 34, 28, 0.02);
 }
 
 .luxury-card-hover {
-  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .luxury-card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 40px -12px rgba(24, 34, 28, 0.12);
-  border-color: #D4CBBC;
+  box-shadow: 0 16px 36px -10px rgba(24, 34, 28, 0.08), 0 4px 10px rgba(24, 34, 28, 0.03);
+  border-color: #D8D2C5;
 }
 
 /* Signature Heritage Wealth Card (Deep Forest Green Satin) */
@@ -46,9 +46,15 @@
   background: linear-gradient(135deg, #102A22 0%, #15382E 50%, #193D32 100%);
   color: #FAF8F3;
   border: 1px solid rgba(181, 147, 90, 0.35);
-  box-shadow: 0 16px 36px -12px rgba(16, 42, 34, 0.28);
+  box-shadow: 0 16px 36px -12px rgba(16, 42, 34, 0.28), 0 4px 12px rgba(16, 42, 34, 0.12);
   position: relative;
   overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.heritage-forest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 42px -12px rgba(16, 42, 34, 0.34), 0 6px 16px rgba(16, 42, 34, 0.16);
 }
 
 .heritage-forest-card::after {
@@ -61,17 +67,17 @@
   background: linear-gradient(
     115deg,
     transparent 0%,
-    rgba(181, 147, 90, 0.04) 45%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(181, 147, 90, 0.04) 55%,
+    rgba(181, 147, 90, 0.03) 45%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(181, 147, 90, 0.03) 55%,
     transparent 100%
   );
   transform: skewX(-20deg);
-  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 .heritage-forest-card:hover::after {
-  transform: translateX(60%) skewX(-20deg);
+  transform: translateX(65%) skewX(-20deg);
 }
 
 /* Subtle Editorial Scrollbars */
@@ -83,7 +89,7 @@
   background: #F5F2EB;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D4CBBC;
+  background: #D8D2C5;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {

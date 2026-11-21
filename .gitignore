@@ -83,3 +83,6 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Third-party Tools & Skills
+unslop/

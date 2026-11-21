@@ -245,7 +245,7 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Helper: Render Circular SVG Risk Score Gauge
+  // Helper: Render Circular SVG Risk Score Gauge with Animated strokeDashoffset
   const renderRiskGauge = (score: number) => {
     const radius = 22;
     const circumference = 2 * Math.PI * radius;
@@ -267,16 +267,17 @@ export const AdminDashboard: React.FC = () => {
             strokeWidth="3.5"
             fill="transparent"
           />
-          <circle
+          <motion.circle
             cx="32"
             cy="32"
             r={radius}
             stroke={color}
             strokeWidth="3.5"
             strokeDasharray={circumference}
-            strokeDashoffset={offset}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] as const }}
             strokeLinecap="round"
-            className="transition-all duration-700 ease-out"
             fill="transparent"
           />
         </svg>
@@ -288,8 +289,35 @@ export const AdminDashboard: React.FC = () => {
     );
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.06,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 12 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.3,
+        ease: [0.22, 1, 0.36, 1] as const,
+      },
+    },
+  };
+
   return (
-    <div className="space-y-7 text-[#171715] font-sans">
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-7 text-[#171715] font-sans"
+    >
       {/* ================= DURESS EMERGENCY BANNER ================= */}
       <AnimatePresence>
         {duressAlerts.length > 0 && (
@@ -345,7 +373,7 @@ export const AdminDashboard: React.FC = () => {
       </AnimatePresence>
 
       {/* Top Operations Header */}
-      <div className="luxury-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
             <h2 className="text-3xl font-serif font-semibold text-[#171715] tracking-tight">
@@ -378,10 +406,10 @@ export const AdminDashboard: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* ================= LIVE ACTIVE SESSIONS & THREAT MONITOR ================= */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
@@ -473,10 +501,10 @@ export const AdminDashboard: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* ================= CRYPTOGRAPHIC KEY GATEWAY TELEMETRY ================= */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
@@ -592,10 +620,10 @@ export const AdminDashboard: React.FC = () => {
             </motion.button>
           </div>
         </form>
-      </div>
+      </motion.div>
 
       {/* ================= REAL-TIME TRANSACTIONS FEED ================= */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
@@ -715,10 +743,10 @@ export const AdminDashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      </motion.div>
 
       {/* ================= REGISTERED CLIENTS DIRECTORY ================= */}
-      <div className="luxury-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="luxury-card rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-[#F4EFE4] border border-[#E2D4BC] flex items-center justify-center text-[#B5935A]">
             <Users className="w-5 h-5" />
@@ -786,7 +814,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
