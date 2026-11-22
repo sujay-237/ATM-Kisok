@@ -29,6 +29,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegisterSucces
   const streamRef = useRef<MediaStream | null>(null);
 
   const stopCamera = () => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -46,21 +49,21 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegisterSucces
       let stream: MediaStream | null = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'user' }, width: { ideal: 480 }, height: { ideal: 480 } },
+          video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
         });
       } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
       streamRef.current = stream;
+      setIsCameraActive(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
         videoRef.current.setAttribute('webkit-playsinline', 'true');
         videoRef.current.muted = true;
-        await videoRef.current.play();
+        videoRef.current.play().catch(console.warn);
       }
-      setIsCameraActive(true);
     } catch (err) {
       console.warn('Camera failed:', err);
       setError('Could not access camera. You can choose a photo file instead.');
@@ -265,17 +268,19 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegisterSucces
 
             <div className="flex items-center gap-3 bg-[#FCFBF8] p-3 rounded-2xl border border-[#E6E0D4] shadow-warm-xs">
               <div className="w-20 h-20 rounded-xl bg-[#F5F2EB] border border-[#E6E0D4] overflow-hidden relative flex items-center justify-center shrink-0">
-                {isCameraActive ? (
-                  <video
-                    ref={videoRef}
-                    playsInline
-                    autoPlay
-                    muted
-                    className="w-full h-full object-cover transform -scale-x-100"
-                  />
-                ) : selfieBase64 ? (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  autoPlay
+                  muted
+                  className={`w-full h-full object-cover transform -scale-x-100 ${
+                    isCameraActive ? 'block' : 'hidden'
+                  }`}
+                />
+                {!isCameraActive && selfieBase64 && (
                   <img src={selfieBase64} alt="Selfie" className="w-full h-full object-cover" />
-                ) : (
+                )}
+                {!isCameraActive && !selfieBase64 && (
                   <Camera className="w-7 h-7 text-[#9A9386]" />
                 )}
                 {selfieBase64 && !isCameraActive && (

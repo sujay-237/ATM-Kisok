@@ -33,6 +33,9 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopStream = () => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -42,6 +45,9 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
   const initCamera = useCallback(async () => {
     setError(null);
     setCameraStatus('initializing');
+
+    // 250ms debounce to give Android Camera HAL time to release back sensor
+    await new Promise((r) => setTimeout(r, 250));
 
     // 1. If running as native Android app, proactively request OS camera permission
     if (isNativeAndroidApp()) {
@@ -56,7 +62,7 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       console.warn('navigator.mediaDevices.getUserMedia not available');
       setCameraStatus('inactive');
-      setError('Camera access not supported on this browser context. You can upload a photo or use your enrolled baseline.');
+      setError('Camera access not supported on this context. Tap "Verify with Enrolled Baseline" or "Upload Photo" below.');
       return;
     }
 
@@ -65,13 +71,15 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
     try {
       // Stage 1: Ideal front-facing user camera
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
       });
     } catch (e1) {
       console.warn('Stage 1 camera constraint failed, trying Stage 2:', e1);
       try {
-        // Stage 2: Generic user facingMode
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        // Stage 2: Ideal facingMode
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'user' } },
+        });
       } catch (e2) {
         console.warn('Stage 2 camera constraint failed, trying Stage 3 (any camera):', e2);
         try {
@@ -80,7 +88,7 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
         } catch (e3: unknown) {
           console.warn('All camera attempts failed:', e3);
           setCameraStatus('inactive');
-          setError('Camera device unavailable or permission denied. Tap "Use Enrolled Baseline" or "Upload Photo" below.');
+          setError('Camera sensor unavailable. Tap "Verify with Enrolled Baseline" or "Upload Photo" below.');
           return;
         }
       }
@@ -90,18 +98,32 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
       stopStream();
       streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.setAttribute('webkit-playsinline', 'true');
-        videoRef.current.muted = true;
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.muted = true;
+        video.onloadedmetadata = async () => {
+          try {
+            await video.play();
+            setCameraStatus('active');
+            setError(null);
+          } catch (pErr) {
+            console.warn('Video play on metadata error:', pErr);
+            setCameraStatus('active');
+          }
+        };
         try {
-          await videoRef.current.play();
+          await video.play();
+          setCameraStatus('active');
+          setError(null);
         } catch (playErr) {
           console.warn('Video element play error:', playErr);
+          setCameraStatus('active');
         }
+      } else {
+        setCameraStatus('active');
       }
-      setCameraStatus('active');
-      setError(null);
     }
   }, []);
 
@@ -253,21 +275,30 @@ export const SelfieScreen: React.FC<SelfieScreenProps> = ({
       {/* Face-Alignment HUD Ring Viewfinder */}
       <div className="my-auto flex flex-col items-center">
         <div className="relative w-56 h-56 rounded-full overflow-hidden border-2 border-[#E6E0D4] bg-[#171715] shadow-warm-md flex items-center justify-center ring-4 ring-[#E6E0D4]/50">
-          {capturedPhoto ? (
+          {/* Always mount video element so videoRef.current is permanently valid */}
+          <video
+            ref={videoRef}
+            playsInline
+            autoPlay
+            muted
+            className={`w-full h-full object-cover transform -scale-x-100 ${
+              cameraStatus === 'active' && !capturedPhoto ? 'block' : 'hidden'
+            }`}
+          />
+
+          {capturedPhoto && (
             <img src={capturedPhoto} alt="Captured Face" className="w-full h-full object-cover" />
-          ) : cameraStatus === 'active' ? (
-            <video
-              ref={videoRef}
-              playsInline
-              autoPlay
-              muted
-              className="w-full h-full object-cover transform -scale-x-100"
-            />
-          ) : (
+          )}
+
+          {cameraStatus !== 'active' && !capturedPhoto && (
             <div className="p-4 text-xs text-[#9A9386] flex flex-col items-center justify-center">
               <Camera className="w-10 h-10 mb-2 text-[#9A9386]" />
-              <span className="font-serif font-medium text-white">Camera Standby</span>
-              <span className="text-[10px] font-mono mt-1 text-[#9A9386]">Tap buttons below to verify</span>
+              <span className="font-serif font-medium text-white">
+                {cameraStatus === 'initializing' ? 'Activating Camera...' : 'Camera Standby'}
+              </span>
+              <span className="text-[10px] font-mono mt-1 text-[#9A9386]">
+                {cameraStatus === 'initializing' ? 'Connecting optical sensor...' : 'Tap buttons below to verify'}
+              </span>
             </div>
           )}
           <canvas ref={canvasRef} className="hidden" />

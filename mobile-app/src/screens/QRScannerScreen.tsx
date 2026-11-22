@@ -55,8 +55,12 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
 
       await mobileApi.scanSessionQR(sessionId, user.id, 'Mobile Android App', prestagedAmount);
 
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
 
       setTimeout(() => {
@@ -161,12 +165,17 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
       isScanningRef.current = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
       if (localStream) {
         (localStream as MediaStream).getTracks().forEach((track) => track.stop());
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
     };
   }, [scanLoop]);

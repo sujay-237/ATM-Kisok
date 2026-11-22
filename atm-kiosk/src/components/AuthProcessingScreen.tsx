@@ -1,5 +1,5 @@
 import React from 'react';
-import { Fingerprint, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Fingerprint, CheckCircle2, RefreshCw, ShieldCheck, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface AuthProcessingProps {
@@ -45,10 +45,10 @@ export const AuthProcessingScreen: React.FC<AuthProcessingProps> = ({
             </motion.div>
           ) : (
             <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              animate={{ scale: [0.96, 1.04, 0.96] }}
+              transition={{ repeat: Infinity, duration: 1.8 }}
             >
-              <RefreshCw className="w-8 h-8 text-[#B5935A]" />
+              <Camera className="w-9 h-9 text-[#B5935A]" />
             </motion.div>
           )}
         </div>
@@ -66,8 +66,9 @@ export const AuthProcessingScreen: React.FC<AuthProcessingProps> = ({
           : 'Sentinel Secure Protocol is validating identity and verifying perimeter security integrity...'}
       </p>
 
-      {/* Verification Steps Card */}
+      {/* Verification Steps Card - All 3 Authentication Stages */}
       <div className="w-full max-w-md mt-6 space-y-2.5 text-left">
+        {/* Step 1: Cryptographic Handshake */}
         <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#FCFBF8] border border-[#E6E0D4] shadow-warm-xs">
           <div className="flex items-center space-x-3">
             <div className="w-7 h-7 rounded-lg bg-[#EBF5F0] border border-[#CDE5D9] flex items-center justify-center text-[#155E43]">
@@ -83,6 +84,7 @@ export const AuthProcessingScreen: React.FC<AuthProcessingProps> = ({
           </span>
         </div>
 
+        {/* Step 2: Hardware Biometric Validation */}
         <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#FCFBF8] border border-[#E6E0D4] shadow-warm-xs">
           <div className="flex items-center space-x-3">
             <div className="w-7 h-7 rounded-lg bg-[#F5F2EB] border border-[#E6E0D4] flex items-center justify-center text-[#666156]">
@@ -105,6 +107,34 @@ export const AuthProcessingScreen: React.FC<AuthProcessingProps> = ({
               : 'bg-[#EBF5F0] text-[#155E43] border-[#CDE5D9]'
           }`}>
             {step === 'MOBILE_SCANNED' ? 'PENDING' : 'VERIFIED'}
+          </span>
+        </div>
+
+        {/* Step 3: Facial Identity Verification & Threat Surveillance */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#FCFBF8] border border-[#E6E0D4] shadow-warm-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-7 h-7 rounded-lg bg-[#F5F2EB] border border-[#E6E0D4] flex items-center justify-center text-[#666156]">
+              {step === 'MOBILE_SCANNED' ? (
+                <Camera className="w-4 h-4 text-[#9A9386]" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#B5935A]" />
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-[#171715] font-sans">3. Facial Identity & Perimeter Scan</p>
+              <p className="text-[11px] text-[#666156] font-mono">
+                {step === 'MOBILE_SCANNED'
+                  ? 'Awaiting camera capture on authorized device...'
+                  : 'Validating live biometric scan & perimeter security...'}
+              </p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-mono tracking-wider font-semibold px-2 py-0.5 rounded-full border ${
+            step === 'MOBILE_SCANNED'
+              ? 'bg-[#F5F2EB] text-[#9A9386] border-[#E6E0D4]'
+              : 'bg-[#FDF6E7] text-[#9A6700] border-[#F0DFB8] animate-pulse'
+          }`}>
+            {step === 'MOBILE_SCANNED' ? 'AWAITING' : 'VALIDATING'}
           </span>
         </div>
       </div>
