@@ -43,18 +43,27 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegisterSucces
   const startCamera = async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
-      });
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'user' }, width: { ideal: 480 }, height: { ideal: 480 } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.muted = true;
+        await videoRef.current.play();
       }
       setIsCameraActive(true);
     } catch (err) {
       console.warn('Camera failed:', err);
-      setError('Could not access front camera. You can choose a photo file instead.');
+      setError('Could not access camera. You can choose a photo file instead.');
       setIsCameraActive(false);
     }
   };

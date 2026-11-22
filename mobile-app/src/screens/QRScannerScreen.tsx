@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Camera, AlertCircle, RefreshCw, CheckCircle2, Zap } from 'lucide-react';
 import { MobileUser, ScannedSession } from '../types';
 import { mobileApi } from '../services/api';
+import { NativeBiometricAuth, isNativeAndroidApp } from '../services/biometric';
 
 interface QRScannerScreenProps {
   user: MobileUser;
@@ -109,28 +110,52 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
     isScanningRef.current = true;
     let localStream: MediaStream | null = null;
 
-    navigator.mediaDevices?.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    })
-      .then((s) => {
+    const startCamera = async () => {
+      if (isNativeAndroidApp()) {
+        try {
+          await NativeBiometricAuth.requestCameraPermission();
+        } catch (e) {
+          console.warn('Native camera permission error:', e);
+        }
+      }
+
+      let s: MediaStream | null = null;
+      try {
+        s = await navigator.mediaDevices?.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch (e1) {
+        console.warn('Environment facing camera failed, falling back to any camera:', e1);
+        try {
+          s = await navigator.mediaDevices?.getUserMedia({ video: true });
+        } catch (e2) {
+          console.warn('All camera constraints failed:', e2);
+          setCameraActive(false);
+          return;
+        }
+      }
+
+      if (s) {
         localStream = s;
         streamRef.current = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
+          videoRef.current.muted = true;
           videoRef.current.play().then(() => {
             setCameraActive(true);
             animationFrameRef.current = requestAnimationFrame(scanLoop);
           }).catch(console.warn);
         }
-      })
-      .catch((err) => {
-        console.warn('Camera stream error:', err);
-        setCameraActive(false);
-      });
+      }
+    };
+
+    startCamera();
 
     return () => {
       isScanningRef.current = false;
@@ -138,7 +163,7 @@ export const QRScannerScreen: React.FC<QRScannerScreenProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
       if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
+        (localStream as MediaStream).getTracks().forEach((track) => track.stop());
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());

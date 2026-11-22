@@ -1,8 +1,11 @@
 package com.sentinel.atm;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
@@ -90,5 +93,26 @@ public class BiometricPlugin extends Plugin {
                 call.resolve(res);
             }
         });
+    }
+
+    @PluginMethod
+    public void requestCameraPermission(PluginCall call) {
+        try {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                JSObject ret = new JSObject();
+                ret.put("granted", true);
+                call.resolve(ret);
+            } else {
+                ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.CAMERA}, 1001);
+                JSObject ret = new JSObject();
+                ret.put("granted", false);
+                ret.put("requested", true);
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("error", e.getMessage());
+            call.resolve(ret);
+        }
     }
 }

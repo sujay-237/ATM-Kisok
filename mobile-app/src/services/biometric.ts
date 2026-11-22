@@ -12,6 +12,12 @@ export interface BiometricAuthResult {
   code?: number;
 }
 
+export interface CameraPermissionResult {
+  granted?: boolean;
+  requested?: boolean;
+  error?: string;
+}
+
 export interface BiometricAuthPlugin {
   checkBiometry(): Promise<BiometricCheckResult>;
   authenticate(options?: {
@@ -19,6 +25,7 @@ export interface BiometricAuthPlugin {
     subtitle?: string;
     cancelButtonText?: string;
   }): Promise<BiometricAuthResult>;
+  requestCameraPermission(): Promise<CameraPermissionResult>;
 }
 
 class BiometricAuthWeb implements BiometricAuthPlugin {
@@ -40,6 +47,10 @@ class BiometricAuthWeb implements BiometricAuthPlugin {
 
   async authenticate(): Promise<BiometricAuthResult> {
     return { success: false, error: 'WEB_FALLBACK_REQUIRED' };
+  }
+
+  async requestCameraPermission(): Promise<CameraPermissionResult> {
+    return { granted: true };
   }
 }
 
